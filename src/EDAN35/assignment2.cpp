@@ -11,6 +11,7 @@
 #include "core/node.hpp"
 #include "core/opengl.hpp"
 #include "core/ShaderProgramManager.hpp"
+#include "EDAF80/parametric_shapes.hpp"
 
 #include <imgui.h>
 #include <glm/glm.hpp>
@@ -28,7 +29,7 @@ namespace constant
 	constexpr uint32_t shadowmap_res_x = 1024;
 	constexpr uint32_t shadowmap_res_y = 1024;
 
-	constexpr float  scale_lengths       = 100.0f; // The scene is expressed in centimetres rather than metres, hence the x100.
+	constexpr float  scale_lengths       = 1.0f; // The scene is expressed in centimetres rather than metres, hence the x100.
 
 	constexpr size_t lights_nb           = 4;
 	constexpr float  light_intensity     = 72.0f * (scale_lengths * scale_lengths);
@@ -186,15 +187,18 @@ edan35::Assignment2::~Assignment2()
 void
 edan35::Assignment2::run()
 {
+	float earth_radius = 10.0f;
+	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("textures/cobblestone_floor_08_diff_2k.jpg"));
+	auto earth_geometry = parametric_shapes::createSphere(earth_radius, 1000, 1000);
+	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
+
 	// Load the geometry of Sponza
-	auto const sponza_geometry = bonobo::loadObjects(config::resources_path("sponza/sponza.obj"));
-	if (sponza_geometry.empty()) {
-		LogError("Failed to load the Sponza model");
-		return;
-	}
+	std::vector<bonobo::mesh_data> scene_geometry;
+	scene_geometry.emplace_back(earth_geometry);
+
 	std::vector<GeometryTextureData> sponza_geometry_texture_data;
-	sponza_geometry_texture_data.reserve(sponza_geometry.size());
-	for (auto const& geometry : sponza_geometry) {
+	sponza_geometry_texture_data.reserve(scene_geometry.size());
+	for (auto const& geometry : scene_geometry) {
 		auto const diffuse_texture = geometry.bindings.find("diffuse_texture");
 		auto const specular_texture = geometry.bindings.find("specular_texture");
 		auto const normals_texture = geometry.bindings.find("normals_texture");
@@ -227,7 +231,7 @@ edan35::Assignment2::run()
 	//
 	// Setup the camera
 	//
-	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, 1.8f) * constant::scale_lengths);
+	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + 5) * constant::scale_lengths);
 	mCamera.mMouseSensitivity = 0.003f;
 	mCamera.mMovementSpeed = 3.0f * constant::scale_lengths; // 3 m/s => 10.8 km/h.
 
@@ -328,7 +332,6 @@ edan35::Assignment2::run()
 		glBindSampler(slot, sampler);
 	};
 
-
 	//
 	// Setup lights properties
 	//
@@ -366,6 +369,27 @@ edan35::Assignment2::run()
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, fbos[toU(FBO::Resolve)]);
 
 
+	//Setup nodes
+
+	GLuint plane_diff_tex = bonobo::loadTexture2D(config::resources_path("textures/waves.jpg"));
+	auto plane_geometry = parametric_shapes::createSphere(1, 100, 100);
+	plane_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
+
+	auto const test_uniform = [&fill_gbuffer_shader_locations](GLuint program)
+	{
+		glUniform1i(fill_gbuffer_shader_locations.diffuse_texture, 0);
+		glUniform1i(fill_gbuffer_shader_locations.specular_texture, 1);
+		glUniform1i(fill_gbuffer_shader_locations.normals_texture, 2);
+		glUniform1i(fill_gbuffer_shader_locations.opacity_texture, 3);
+	};
+
+	Node plane;
+	plane.set_geometry(plane_geometry);
+	plane.get_transform().Translate(glm::vec3(0, 0, earth_radius + 1));
+	plane.set_program(&fill_gbuffer_shader, test_uniform);
+
+
+
 	auto seconds_nb = 0.0f;
 	std::array<GLuint64, toU(ElapsedTimeQuery::Count)> pass_elapsed_times;
 	auto lastTime = std::chrono::high_resolution_clock::now();
@@ -381,6 +405,7 @@ edan35::Assignment2::run()
 	float basis_thickness_scale = 40.0f;
 	float basis_length_scale = 400.0f;
 
+	//Main loop
 	while (!glfwWindowShouldClose(window)) {
 		auto const nowTime = std::chrono::high_resolution_clock::now();
 		auto const deltaTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(nowTime - lastTime);
@@ -453,7 +478,6 @@ edan35::Assignment2::run()
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(light_view_proj_transforms), light_view_proj_transforms.data());
 		glBindBuffer(GL_UNIFORM_BUFFER, 0u);
 
-
 		if (!shader_reload_failed) {
 			//
 			// Pass 1: Render scene into the g-buffer
@@ -471,9 +495,9 @@ edan35::Assignment2::run()
 			glUniform1i(fill_gbuffer_shader_locations.specular_texture, 1);
 			glUniform1i(fill_gbuffer_shader_locations.normals_texture, 2);
 			glUniform1i(fill_gbuffer_shader_locations.opacity_texture, 3);
-			for (std::size_t i = 0; i < sponza_geometry.size(); ++i)
+			for (std::size_t i = 0; i < scene_geometry.size(); ++i)
 			{
-				auto const& geometry = sponza_geometry[i];
+				auto const& geometry = scene_geometry[i];
 				auto const& texture_data = sponza_geometry_texture_data[i];
 
 				utils::opengl::debug::beginDebugGroup(geometry.name);
@@ -516,6 +540,9 @@ edan35::Assignment2::run()
 
 				utils::opengl::debug::endDebugGroup();
 			}
+
+			plane.render(view_projection, glm::mat4(1.0f));
+
 			glBindTexture(GL_TEXTURE_2D, 0);
 			glBindVertexArray(0u);
 			glUseProgram(0u);
@@ -552,9 +579,9 @@ edan35::Assignment2::run()
 				glUseProgram(fill_shadowmap_shader);
 				glUniform1i(fill_shadowmap_shader_locations.light_index, static_cast<int>(i));
 				glUniform1i(fill_shadowmap_shader_locations.opacity_texture, 0);
-				for (std::size_t i = 0; i < sponza_geometry.size(); ++i)
+				for (std::size_t i = 0; i < scene_geometry.size(); ++i)
 				{
-					auto const& geometry = sponza_geometry[i];
+					auto const& geometry = scene_geometry[i];
 					auto const& texture_data = sponza_geometry_texture_data[i];
 
 					utils::opengl::debug::beginDebugGroup(geometry.name);

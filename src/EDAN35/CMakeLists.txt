@@ -1,5 +1,4 @@
 add_executable (EDAN35_Assignment2)
-
 target_sources (
 	EDAN35_Assignment2
 	PRIVATE
@@ -7,7 +6,7 @@ target_sources (
 		[[assignment2.cpp]]
 )
 
-target_link_libraries (EDAN35_Assignment2 PRIVATE assignment_setup)
+target_link_libraries (EDAN35_Assignment2 PRIVATE assignment_setup parametric_shapes)
 
 install (TARGETS EDAN35_Assignment2 DESTINATION bin)
 
