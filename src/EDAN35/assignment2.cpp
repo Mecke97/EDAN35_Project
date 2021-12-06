@@ -198,8 +198,10 @@ edan35::Assignment2::run()
 {
 	float earth_radius = 10.0f;
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
+	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
 	auto earth_geometry = parametric_shapes::createSphere(earth_radius, 1000, 1000);
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
+	earth_geometry.bindings.insert(std::make_pair("specular_texture", earth_specular_tex));
 
 	// Load the geometry of Sponza
 	std::vector<bonobo::mesh_data> scene_geometry;
