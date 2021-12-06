@@ -31,9 +31,9 @@ namespace constant
 
 	constexpr float  scale_lengths       = 1.0f; // The scene is expressed in centimetres rather than metres, hence the x100.
 
-	constexpr size_t lights_nb           = 4;
-	constexpr float  light_intensity     = 72.0f * (scale_lengths * scale_lengths);
-	constexpr float  light_angle_falloff = glm::radians(37.0f);
+	constexpr size_t lights_nb           = 100;
+	//constexpr float  light_intensity     = 72.0f * (scale_lengths * scale_lengths);
+	//constexpr float  light_angle_falloff = glm::radians(37.0f);
 }
 
 namespace
@@ -105,6 +105,15 @@ namespace
 		glm::mat4 view_projection_inverse = glm::mat4(1.0f);
 	};
 
+	struct ConeLight
+	{
+		TRSTransformf transform;
+		ViewProjTransforms proj_transforms;
+		glm::vec3 color;
+		float intensity;
+		float angle_falloff;
+	};
+
 	struct GeometryTextureData
 	{
 		GLuint diffuse_texture_id{ 0u };
@@ -166,7 +175,7 @@ namespace
 edan35::Assignment2::Assignment2(WindowManager& windowManager) :
 	mCamera(0.5f * glm::half_pi<float>(),
 	        static_cast<float>(config::resolution_x) / static_cast<float>(config::resolution_y),
-	        0.01f * constant::scale_lengths, 30.0f * constant::scale_lengths),
+	        0.01f * constant::scale_lengths, 1000.0f * constant::scale_lengths),
 	inputHandler(), mWindowManager(windowManager), window(nullptr)
 {
 	WindowManager::WindowDatum window_datum{ inputHandler, mCamera, config::resolution_x, config::resolution_y, 0, 0, 0, 0};
@@ -188,7 +197,7 @@ void
 edan35::Assignment2::run()
 {
 	float earth_radius = 10.0f;
-	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("textures/cobblestone_floor_08_diff_2k.jpg"));
+	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	auto earth_geometry = parametric_shapes::createSphere(earth_radius, 1000, 1000);
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 
@@ -335,23 +344,37 @@ edan35::Assignment2::run()
 	//
 	// Setup lights properties
 	//
-	std::array<TRSTransformf, constant::lights_nb> lightTransforms;
-	std::array<glm::vec3, constant::lights_nb> lightColors;
-	int lights_nb = static_cast<int>(constant::lights_nb);
+
+
+	//std::array<TRSTransformf, constant::lights_nb> lightTransforms;
+	//std::array<glm::vec3, constant::lights_nb> lightColors;
+
 	bool are_lights_paused = false;
 
-	for (size_t i = 0; i < static_cast<size_t>(lights_nb); ++i) {
-		lightTransforms[i].SetTranslate(glm::vec3(0.0f, 1.25f, 0.0f) * constant::scale_lengths);
-		lightColors[i] = glm::vec3(0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)),
-		                           0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)),
-		                           0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)));
-	}
+	//for (size_t i = 0; i < static_cast<size_t>(lights_nb); ++i) {
+	//	lightTransforms[i].SetTranslate(glm::vec3(0.0f, 1.25f, 0.0f) * constant::scale_lengths);
+	//	lightColors[i] = glm::vec3(0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)),
+	//	                           0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)),
+	//	                           0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)));
+	//}
 
 	float const lightProjectionNearPlane = 0.01f * constant::scale_lengths;
-	float const lightProjectionFarPlane = 20.0f * constant::scale_lengths;
+	float const lightProjectionFarPlane = 100.0f * constant::scale_lengths;
 	auto lightProjection = glm::perspective(0.5f * glm::pi<float>(),
 	                                        static_cast<float>(constant::shadowmap_res_x) / static_cast<float>(constant::shadowmap_res_y),
 	                                        lightProjectionNearPlane, lightProjectionFarPlane);
+
+	std::vector<ConeLight> lights;
+
+	ConeLight sun;
+	sun.angle_falloff = glm::radians(170.0f);
+	sun.color = glm::vec3(1.0f);
+	sun.intensity = 150.0f;
+	sun.transform.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + 10) * constant::scale_lengths);
+
+	lights.push_back(sun);
+
+	//int lights_nb = static_cast<int>(constant::lights_nb);
 
 	TRSTransformf coneScaleTransform;
 	coneScaleTransform.SetScale(glm::vec3(lightProjectionFarPlane * 0.8f));
@@ -370,8 +393,6 @@ edan35::Assignment2::run()
 
 
 	//Setup nodes
-
-	GLuint plane_diff_tex = bonobo::loadTexture2D(config::resources_path("textures/waves.jpg"));
 	auto plane_geometry = parametric_shapes::createSphere(1, 100, 100);
 	plane_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 
@@ -456,9 +477,8 @@ edan35::Assignment2::run()
 		}
 
 
-		for (size_t i = 0; i < static_cast<size_t>(lights_nb); ++i) {
-			auto& lightTransform = lightTransforms[i];
-			lightTransform.SetRotate(seconds_nb * 0.1f + i * 1.57f, glm::vec3(0.0f, 1.0f, 0.0f));
+		for (size_t i = 0; i < lights.size(); ++i) {
+			auto& lightTransform = lights[i].transform;
 
 			auto const light_view_matrix = lightOffsetTransform.GetMatrixInverse() * lightTransform.GetMatrixInverse();
 			auto const light_world_matrix = glm::inverse(light_view_matrix) * coneScaleTransform.GetMatrix();
@@ -559,8 +579,8 @@ edan35::Assignment2::run()
 			glViewport(0, 0, framebuffer_width, framebuffer_height);
 			glClear(GL_COLOR_BUFFER_BIT);
 			// XXX: Is any clearing needed?
-			for (size_t i = 0; i < static_cast<size_t>(lights_nb); ++i) {
-				auto const& lightTransform = lightTransforms[i];
+			for (size_t i = 0; i < lights.size(); ++i) {
+				auto const& lightTransform = lights[i].transform;
 				auto const light_view_matrix = lightOffsetTransform.GetMatrixInverse() * lightTransform.GetMatrixInverse();
 				auto const light_world_matrix = glm::inverse(light_view_matrix) * coneScaleTransform.GetMatrix();
 				auto const light_world_to_clip_matrix = lightProjection * light_view_matrix;
@@ -634,11 +654,11 @@ edan35::Assignment2::run()
 				glUniform2f(accumulate_light_shader_locations.inverse_screen_resolution,
 				            1.0f / static_cast<float>(framebuffer_width),
 				            1.0f / static_cast<float>(framebuffer_height));
-				glUniform3fv(accumulate_light_shader_locations.light_color, 1, glm::value_ptr(lightColors[i]));
+				glUniform3fv(accumulate_light_shader_locations.light_color, 1, glm::value_ptr(lights[i].color));
 				glUniform3fv(accumulate_light_shader_locations.light_position, 1, glm::value_ptr(lightTransform.GetTranslation()));
 				glUniform3fv(accumulate_light_shader_locations.light_direction, 1, glm::value_ptr(lightTransform.GetFront()));
-				glUniform1f(accumulate_light_shader_locations.light_intensity, constant::light_intensity);
-				glUniform1f(accumulate_light_shader_locations.light_angle_falloff, constant::light_angle_falloff);
+				glUniform1f(accumulate_light_shader_locations.light_intensity, lights[i].intensity);
+				glUniform1f(accumulate_light_shader_locations.light_angle_falloff, lights[i].angle_falloff);
 
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, textures[toU(Texture::DepthBuffer)]);
@@ -718,9 +738,9 @@ edan35::Assignment2::run()
 
 			glDisable(GL_CULL_FACE);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			for (size_t i = 0; i < lights_nb; ++i) {
+			for (size_t i = 0; i < lights.size(); ++i) {
 				cone.render(view_projection,
-				            lightTransforms[i].GetMatrix() * lightOffsetTransform.GetMatrix() * coneScaleTransform.GetMatrix(),
+				            lights[i].transform.GetMatrix() * lightOffsetTransform.GetMatrix() * coneScaleTransform.GetMatrix(),
 				            render_light_cones_shader, set_uniforms);
 			}
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -781,7 +801,7 @@ edan35::Assignment2::run()
 				ImGui::TableNextColumn();
 				ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::GbufferGeneration)] / 1000000.0f);
 
-				for (std::size_t i = 0; i < lights_nb; ++i) {
+				for (std::size_t i = 0; i < lights.size(); ++i) {
 					ImGui::TableNextColumn();
 					ImGui::Text("Light %zu", i);
 					ImGui::TableNextColumn();
@@ -826,13 +846,14 @@ edan35::Assignment2::run()
 		opened = ImGui::Begin("Scene Controls", nullptr, ImGuiWindowFlags_None);
 		if (opened) {
 			ImGui::Checkbox("Pause lights", &are_lights_paused);
-			ImGui::SliderInt("Number of lights", &lights_nb, 1, static_cast<int>(constant::lights_nb));
+			//ImGui::SliderInt("Number of lights", &lights_nb, 1, static_cast<int>(constant::lights_nb));
 			ImGui::Checkbox("Show textures", &show_textures);
 			ImGui::Checkbox("Show light cones wireframe", &show_cone_wireframe);
 			ImGui::Separator();
 			ImGui::Checkbox("Show basis", &show_basis);
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
+			ImGui::SliderFloat("Sun intensity", &sun.intensity, 0.0f, 100.0f);
 		}
 		ImGui::End();
 

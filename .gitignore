@@ -9,8 +9,9 @@ out/
 dependencies/
 
 # Resources folder
-res/
 res.zip
+res/*
+!res/project/
 
 # Application produced files
 imgui.ini
