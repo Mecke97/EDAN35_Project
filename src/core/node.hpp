@@ -41,6 +41,8 @@ public:
 	            GLuint program,
 	            std::function<void (GLuint)> const& set_uniforms = [](GLuint /*programID*/){}) const;
 
+	void render_recursive(glm::mat4 const& view_projection, glm::mat4 const& parent_transform = glm::mat4(1.0f)) const;
+
 	//! \brief Set the geometry of this node.
 	//!
 	//! It will overwrite any constants provided by an earlier call to
@@ -109,7 +111,7 @@ public:
 	//!
 	//! @param [in] child pointer to the child to add; the pointer has to
 	//!             be non-null
-	void add_child(Node const* child);
+	void add_child(Node* child);
 
 	//! \brief Return the number of children to this node.
 	//!
@@ -129,6 +131,9 @@ public:
 	//!         transformations; this is the model matrix of this node
 	TRSTransformf const& get_transform() const;
 	TRSTransformf& get_transform();
+
+	bonobo::mesh_data geometry;
+	Node* parent = nullptr;
 
 private:
 	// Geometry data

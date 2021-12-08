@@ -170,6 +170,19 @@ namespace
 	void fillAccumulateLightsShaderLocations(GLuint accumulate_lights_shader, AccumulateLightsShaderLocations& locations);
 
 	bonobo::mesh_data loadCone();
+
+	struct Airplane
+	{
+		float latitude = 0.0f;
+		float longitude = -90.0f;
+		glm::vec2 angular_velocity = glm::vec2(1.0f, 0.0f);
+		float move_speed = 10.0f;
+		float move_dir = 0.0f;
+		float turn_speed = glm::radians(30.0f);
+		Node* node;
+	};
+
+
 } // namespace
 
 edan35::Assignment2::Assignment2(WindowManager& windowManager) :
@@ -199,7 +212,7 @@ edan35::Assignment2::run()
 	float earth_radius = 10.0f;
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
-	auto earth_geometry = parametric_shapes::createSphere(earth_radius, 1000, 1000);
+	auto earth_geometry = parametric_shapes::createSphere(earth_radius * constant::scale_lengths, 1000, 1000);
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 	earth_geometry.bindings.insert(std::make_pair("specular_texture", earth_specular_tex));
 
@@ -242,7 +255,9 @@ edan35::Assignment2::run()
 	//
 	// Setup the camera
 	//
-	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + 5) * constant::scale_lengths);
+
+	float camera_height = 5;
+	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + camera_height) * constant::scale_lengths);
 	mCamera.mMouseSensitivity = 0.003f;
 	mCamera.mMovementSpeed = 3.0f * constant::scale_lengths; // 3 m/s => 10.8 km/h.
 
@@ -369,10 +384,10 @@ edan35::Assignment2::run()
 	std::vector<ConeLight> lights;
 
 	ConeLight sun;
-	sun.angle_falloff = glm::radians(170.0f);
+	sun.angle_falloff = glm::radians(37.0f);
 	sun.color = glm::vec3(1.0f);
 	sun.intensity = 150.0f;
-	sun.transform.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + 10) * constant::scale_lengths);
+	sun.transform.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + 20) * constant::scale_lengths);
 
 	lights.push_back(sun);
 
@@ -395,23 +410,83 @@ edan35::Assignment2::run()
 
 
 	//Setup nodes
-	auto plane_geometry = parametric_shapes::createSphere(1, 100, 100);
-	plane_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
+	std::vector<Node*> nodes;
 
-	auto const test_uniform = [&fill_gbuffer_shader_locations](GLuint program)
+	auto plane_geometry = bonobo::loadObjects(config::resources_path("project/airplane/airplane.obj"));
+	if (plane_geometry.empty())
 	{
-		glUniform1i(fill_gbuffer_shader_locations.diffuse_texture, 0);
-		glUniform1i(fill_gbuffer_shader_locations.specular_texture, 1);
-		glUniform1i(fill_gbuffer_shader_locations.normals_texture, 2);
-		glUniform1i(fill_gbuffer_shader_locations.opacity_texture, 3);
-	};
+		LogError("Failed to load the airplane model");
+		return;
+	}
+
+	auto plane_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/airplane/textures/diffuse.jpg"));
+	auto plane_normals_tex = bonobo::loadTexture2D(config::resources_path("project/airplane/textures/normal.png"));
+
+	for (auto md : plane_geometry)
+	{
+		md.bindings.insert(std::make_pair("diffuse_texture", plane_diffuse_tex));
+		md.bindings.insert(std::make_pair("normals_texture", plane_normals_tex));
+	}
 
 	Node plane;
-	plane.set_geometry(plane_geometry);
-	plane.get_transform().Translate(glm::vec3(0, 0, earth_radius + 1));
-	plane.set_program(&fill_gbuffer_shader, test_uniform);
+	plane.set_geometry(plane_geometry.at(0));
 
+	auto plane_elevation = 1.0f;
+	
+	plane.get_transform().SetTranslate(glm::vec3(0, 0, earth_radius + plane_elevation) * constant::scale_lengths);
+	plane.get_transform().RotateX(glm::radians(-90.0f));
+	plane.get_transform().RotateY(glm::radians(180.0f));
+	plane.get_transform().SetScale(0.005 * constant::scale_lengths);
 
+	nodes.push_back(&plane);
+
+	Node* c;
+	for (int i = 1; i < plane_geometry.size(); i++)
+	{
+		c = new Node();
+		c->set_geometry(plane_geometry[i]);
+
+		nodes.push_back(c);
+		plane.add_child(c);
+	}
+
+	std::vector<GeometryTextureData> nodes_texture_data;
+	nodes_texture_data.reserve(nodes.size());
+	for (auto const node : nodes)
+	{
+		auto geometry = node->geometry;
+
+		geometry.bindings.insert(std::make_pair("diffuse_texture", plane_diffuse_tex));
+		geometry.bindings.insert(std::make_pair("normals_texture", plane_normals_tex));
+
+		auto const diffuse_texture = geometry.bindings.find("diffuse_texture");
+		auto const specular_texture = geometry.bindings.find("specular_texture");
+		auto const normals_texture = geometry.bindings.find("normals_texture");
+		auto const opacity_texture = geometry.bindings.find("opacity_texture");
+
+		GeometryTextureData data;
+		if (diffuse_texture != geometry.bindings.end())
+		{
+			LogTrivia("Found diffuse");
+			data.diffuse_texture_id = diffuse_texture->second;
+		}
+		if (specular_texture != geometry.bindings.end())
+		{
+			data.specular_texture_id = specular_texture->second;
+		}
+		if (normals_texture != geometry.bindings.end())
+		{
+			LogTrivia("Found normals");
+			data.normals_texture_id = normals_texture->second;
+		}
+		if (opacity_texture != geometry.bindings.end())
+		{
+			data.opacity_texture_id = opacity_texture->second;
+		}
+		nodes_texture_data.emplace_back(std::move(data));
+	}
+
+	
 
 	auto seconds_nb = 0.0f;
 	std::array<GLuint64, toU(ElapsedTimeQuery::Count)> pass_elapsed_times;
@@ -428,10 +503,16 @@ edan35::Assignment2::run()
 	float basis_thickness_scale = 40.0f;
 	float basis_length_scale = 400.0f;
 
+	Airplane airplane;
+	airplane.node = &plane;
+
 	//Main loop
 	while (!glfwWindowShouldClose(window)) {
 		auto const nowTime = std::chrono::high_resolution_clock::now();
 		auto const deltaTimeUs = std::chrono::duration_cast<std::chrono::microseconds>(nowTime - lastTime);
+
+		auto const deltaTimeS = std::chrono::duration<decltype(seconds_nb)>(deltaTimeUs).count();
+
 		lastTime = nowTime;
 		if (!are_lights_paused)
 			seconds_nb += std::chrono::duration<decltype(seconds_nb)>(deltaTimeUs).count();
@@ -441,7 +522,7 @@ edan35::Assignment2::run()
 
 		glfwPollEvents();
 		inputHandler.Advance();
-		mCamera.Update(deltaTimeUs, inputHandler);
+		//mCamera.Update(deltaTimeUs, inputHandler);
 
 		camera_view_proj_transforms.view_projection = mCamera.GetWorldToClipMatrix();
 		camera_view_proj_transforms.view_projection_inverse = mCamera.GetClipToWorldMatrix();
@@ -490,6 +571,50 @@ edan35::Assignment2::run()
 			light_view_proj_transforms[i].view_projection_inverse = glm::inverse(light_world_to_clip_matrix);
 		}
 
+		//
+		//Game logic
+		//
+
+		if (!inputHandler.IsKeyboardCapturedByUI())
+		{
+			if ((inputHandler.GetKeycodeState(GLFW_KEY_A) & PRESSED)) airplane.move_dir += airplane.turn_speed * deltaTimeS;
+			if ((inputHandler.GetKeycodeState(GLFW_KEY_D) & PRESSED)) airplane.move_dir -= airplane.turn_speed * deltaTimeS;
+		}
+
+		airplane.angular_velocity = glm::normalize(glm::vec2(glm::sin(airplane.move_dir), glm::cos(airplane.move_dir))) * airplane.move_speed;
+
+		airplane.latitude += glm::radians(airplane.angular_velocity.x) * deltaTimeS;
+		airplane.longitude += glm::radians(airplane.angular_velocity.y) * deltaTimeS;
+
+		float cos_long = glm::cos(airplane.longitude);
+		float cos_lat = glm::cos(airplane.latitude);
+		float sin_long = glm::sin(airplane.longitude);
+		float sin_lat = glm::sin(airplane.latitude);
+
+		auto dir = glm::vec3(cos_long * cos_lat,
+							 sin_lat,
+							 -sin_long * cos_lat);
+		auto new_pos = dir * (earth_radius + plane_elevation);
+
+		plane.get_transform().SetTranslate(new_pos);
+
+		float l_cos_long = glm::cos(airplane.longitude + glm::radians(airplane.angular_velocity.y) * deltaTimeS);
+		float l_cos_lat = glm::cos(airplane.latitude + glm::radians(airplane.angular_velocity.x) * deltaTimeS);
+		float l_sin_long = glm::sin(airplane.longitude + glm::radians(airplane.angular_velocity.y) * deltaTimeS);
+		float l_sin_lat = glm::sin(airplane.latitude + glm::radians(airplane.angular_velocity.x) * deltaTimeS);
+
+		auto l_pos_dir = glm::vec3(l_cos_long * l_cos_lat,
+			l_sin_lat,
+			-l_sin_long * l_cos_lat);
+		auto l_pos = l_pos_dir * (earth_radius + plane_elevation);
+		auto l_dir = l_pos - new_pos;
+
+		plane.get_transform().LookTowards(-l_dir);
+
+		auto plane_pos = plane.get_transform().GetTranslation();
+		mCamera.mWorld.SetTranslate(plane_pos + dir * camera_height);
+		mCamera.mWorld.LookTowards(-dir);
+
 
 		//
 		// Update per-frame changing UBOs.
@@ -517,6 +642,7 @@ edan35::Assignment2::run()
 			glUniform1i(fill_gbuffer_shader_locations.specular_texture, 1);
 			glUniform1i(fill_gbuffer_shader_locations.normals_texture, 2);
 			glUniform1i(fill_gbuffer_shader_locations.opacity_texture, 3);
+
 			for (std::size_t i = 0; i < scene_geometry.size(); ++i)
 			{
 				auto const& geometry = scene_geometry[i];
@@ -563,7 +689,56 @@ edan35::Assignment2::run()
 				utils::opengl::debug::endDebugGroup();
 			}
 
-			plane.render(view_projection, glm::mat4(1.0f));
+			for (std::size_t i = 0; i < nodes.size(); ++i)
+			{
+				Node node = *(nodes[i]);
+				auto const& geometry = node.geometry;
+				auto const& texture_data = nodes_texture_data[i];
+
+				auto vertex_model_to_world = node.get_transform().GetMatrix();
+
+				Node* parent = node.parent;
+				while (parent)
+				{
+					vertex_model_to_world = parent->get_transform().GetMatrix() * vertex_model_to_world;
+					parent = parent->parent;
+				}
+
+				auto normal_model_to_world = glm::transpose(glm::inverse(vertex_model_to_world));
+
+				glUniformMatrix4fv(fill_gbuffer_shader_locations.vertex_model_to_world, 1, GL_FALSE, glm::value_ptr(vertex_model_to_world));
+				glUniformMatrix4fv(fill_gbuffer_shader_locations.normal_model_to_world, 1, GL_FALSE, glm::value_ptr(normal_model_to_world));
+
+				auto const default_sampler = samplers[toU(Sampler::Nearest)];
+				auto const mipmap_sampler = samplers[toU(Sampler::Mipmaps)];
+
+				glUniform1i(fill_gbuffer_shader_locations.has_diffuse_texture, texture_data.diffuse_texture_id != 0u ? 1 : 0);
+				glBindSampler(0u, texture_data.diffuse_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, texture_data.diffuse_texture_id != 0u ? texture_data.diffuse_texture_id : debug_texture_id);
+
+				glUniform1i(fill_gbuffer_shader_locations.has_specular_texture, texture_data.specular_texture_id != 0u ? 1 : 0);
+				glBindSampler(1u, texture_data.specular_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE1);
+				glBindTexture(GL_TEXTURE_2D, texture_data.specular_texture_id != 0u ? texture_data.specular_texture_id : debug_texture_id);
+
+				glUniform1i(fill_gbuffer_shader_locations.has_normals_texture, texture_data.normals_texture_id != 0u ? 1 : 0);
+				glBindSampler(2u, texture_data.normals_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE2);
+				glBindTexture(GL_TEXTURE_2D, texture_data.normals_texture_id != 0u ? texture_data.normals_texture_id : debug_texture_id);
+
+				glUniform1i(fill_gbuffer_shader_locations.has_opacity_texture, texture_data.opacity_texture_id != 0u ? 1 : 0);
+				glBindSampler(3u, texture_data.opacity_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE3);
+				glBindTexture(GL_TEXTURE_2D, texture_data.opacity_texture_id != 0u ? texture_data.opacity_texture_id : debug_texture_id);
+
+				glBindVertexArray(geometry.vao);
+				if (geometry.ibo != 0u)
+					glDrawElements(geometry.drawing_mode, geometry.indices_nb, GL_UNSIGNED_INT, reinterpret_cast<GLvoid const*>(0x0));
+				else
+					glDrawArrays(geometry.drawing_mode, 0, geometry.vertices_nb);
+
+			}
 
 			glBindTexture(GL_TEXTURE_2D, 0);
 			glBindVertexArray(0u);
@@ -625,6 +800,37 @@ edan35::Assignment2::run()
 
 					utils::opengl::debug::endDebugGroup();
 				}
+
+				for (std::size_t i = 0; i < nodes.size(); ++i)
+				{
+					Node node = *(nodes[i]);
+					auto const& geometry = node.geometry;
+					auto const& texture_data = nodes_texture_data[i];
+
+					auto vertex_model_to_world = node.get_transform().GetMatrix();
+
+					Node* parent = node.parent;
+					while (parent)
+					{
+						vertex_model_to_world = parent->get_transform().GetMatrix() * vertex_model_to_world;
+						parent = parent->parent;
+					}
+
+					glUniformMatrix4fv(fill_shadowmap_shader_locations.vertex_model_to_world, 1, GL_FALSE, glm::value_ptr(vertex_model_to_world));
+
+					glUniform1i(fill_shadowmap_shader_locations.has_opacity_texture, texture_data.opacity_texture_id != 0u ? 1 : 0);
+					glBindSampler(0u, texture_data.opacity_texture_id != 0u ? samplers[toU(Sampler::Mipmaps)] : samplers[toU(Sampler::Nearest)]);
+					glActiveTexture(GL_TEXTURE0);
+					glBindTexture(GL_TEXTURE_2D, texture_data.opacity_texture_id != 0u ? texture_data.opacity_texture_id : debug_texture_id);
+
+					glBindVertexArray(geometry.vao);
+					if (geometry.ibo != 0u)
+						glDrawElements(geometry.drawing_mode, geometry.indices_nb, GL_UNSIGNED_INT, reinterpret_cast<GLvoid const*>(0x0));
+					else
+						glDrawArrays(geometry.drawing_mode, 0, geometry.vertices_nb);
+
+				}
+
 				glBindTexture(GL_TEXTURE_2D, 0);
 				glBindVertexArray(0u);
 				glUseProgram(0u);

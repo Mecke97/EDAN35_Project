@@ -19,6 +19,14 @@ Node::render(glm::mat4 const& view_projection, glm::mat4 const& parent_transform
 }
 
 void
+Node::render_recursive(glm::mat4 const& view_projection, glm::mat4 const& parent_transform) const
+{
+	render(view_projection, parent_transform);
+	for (auto child = _children.begin(); child < _children.end(); child++)
+		(*child)->render_recursive(view_projection, parent_transform * _transform.GetMatrix());
+}
+
+void
 Node::render(glm::mat4 const& view_projection, glm::mat4 const& world, GLuint program, std::function<void (GLuint)> const& set_uniforms) const
 {
 	if (program == 0u) {
@@ -101,6 +109,8 @@ Node::set_geometry(bonobo::mesh_data const& shape)
 	}
 
 	_constants = shape.material;
+
+	geometry = shape;
 }
 
 void
@@ -163,7 +173,7 @@ Node::add_texture(std::string const& name, GLuint tex_id, GLenum type)
 }
 
 void
-Node::add_child(Node const* child)
+Node::add_child(Node* child)
 {
 	if (child == nullptr) {
 		LogWarning("Trying to add a null pointer as child: this will be discarded.");
@@ -171,6 +181,7 @@ Node::add_child(Node const* child)
 	}
 
 	_children.emplace_back(child);
+	child->parent = this;
 }
 
 size_t

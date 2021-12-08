@@ -259,6 +259,7 @@ bonobo::loadObjects(std::string const& filename)
 		                                            +tangents_size
 		                                            +binormals_size
 		                                            );
+
 		glGenBuffers(1, &object.bo);
 		assert(object.bo != 0u);
 		glBindBuffer(GL_ARRAY_BUFFER, object.bo);
@@ -308,7 +309,8 @@ bonobo::loadObjects(std::string const& filename)
 		assert(object.ibo != 0u);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, object.ibo);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, static_cast<unsigned int>(object.indices_nb) * sizeof(GL_UNSIGNED_INT), reinterpret_cast<GLvoid const*>(object_indices.get()), GL_STATIC_DRAW);
-		object_indices.reset(nullptr);
+
+		object_indices.release();
 
 		utils::opengl::debug::nameObject(GL_VERTEX_ARRAY, object.vao, object.name + " VAO");
 		utils::opengl::debug::nameObject(GL_BUFFER, object.bo, object.name + " VBO");
@@ -747,7 +749,8 @@ namespace
 		const GLsizei debug_texture_width = 16;
 		const GLsizei debug_texture_height = 16;
 		std::array<std::uint32_t, debug_texture_width* debug_texture_height> debug_texture_content;
-		debug_texture_content.fill(0xFFE935DAu);
+		//debug_texture_content.fill(0xFFE935DAu);
+		debug_texture_content.fill(0xFFFFFFFFu);
 		glGenTextures(1, &debug_texture_id);
 		glBindTexture(GL_TEXTURE_2D, debug_texture_id);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
