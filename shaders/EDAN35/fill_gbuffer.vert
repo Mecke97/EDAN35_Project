@@ -1,5 +1,7 @@
 #version 410
 
+uniform sampler2D height_texture;
+
 struct ViewProjTransforms
 {
 	mat4 view_projection;
@@ -28,10 +30,14 @@ out VS_OUT {
 
 
 void main() {
+	float height_scale = 0.3;
+	vec3 _vertex = vertex;
+	float height = (texture2D(height_texture, texcoord.xy).r - 0.5) * 2.0;
+	_vertex += height * height_scale * normalize(normal);
 	vs_out.normal   = normalize(normal);
 	vs_out.texcoord = texcoord.xy;
 	vs_out.tangent  = normalize(tangent);
 	vs_out.binormal = normalize(binormal);
 
-	gl_Position = camera.view_projection * vertex_model_to_world * vec4(vertex, 1.0);
+	gl_Position = camera.view_projection * vertex_model_to_world * vec4(_vertex, 1.0);
 }

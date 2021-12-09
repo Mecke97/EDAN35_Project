@@ -120,6 +120,8 @@ namespace
 		GLuint specular_texture_id{ 0u };
 		GLuint normals_texture_id{ 0u };
 		GLuint opacity_texture_id{ 0u };
+		GLuint height_texture_id{ 0u };
+
 	};
 
 	struct GBufferShaderLocations
@@ -135,6 +137,8 @@ namespace
 		GLuint has_specular_texture{ 0u };
 		GLuint has_normals_texture{ 0u };
 		GLuint has_opacity_texture{ 0u };
+		GLuint height_texture{ 0u };
+
 	};
 	void fillGBufferShaderLocations(GLuint gbuffer_shader, GBufferShaderLocations& locations);
 
@@ -213,8 +217,11 @@ edan35::Assignment2::run()
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
 	auto earth_geometry = parametric_shapes::createSphere(earth_radius * constant::scale_lengths, 1000, 1000);
+	GLuint earth_height_tex = bonobo::loadTexture2D(config::resources_path("project/earth_height.jpg"));
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 	earth_geometry.bindings.insert(std::make_pair("specular_texture", earth_specular_tex));
+	earth_geometry.bindings.insert(std::make_pair("height_texture", earth_height_tex));
+
 
 	// Load the geometry of Sponza
 	std::vector<bonobo::mesh_data> scene_geometry;
@@ -227,6 +234,8 @@ edan35::Assignment2::run()
 		auto const specular_texture = geometry.bindings.find("specular_texture");
 		auto const normals_texture = geometry.bindings.find("normals_texture");
 		auto const opacity_texture = geometry.bindings.find("opacity_texture");
+		auto const height_texture = geometry.bindings.find("height_texture");
+
 
 		GeometryTextureData data;
 		if (diffuse_texture != geometry.bindings.end())
@@ -244,6 +253,10 @@ edan35::Assignment2::run()
 		if (opacity_texture != geometry.bindings.end())
 		{
 			data.opacity_texture_id = opacity_texture->second;
+		}
+		if (height_texture != geometry.bindings.end())
+		{
+			data.height_texture_id = height_texture->second;
 		}
 		sponza_geometry_texture_data.emplace_back(std::move(data));
 	}
@@ -642,6 +655,7 @@ edan35::Assignment2::run()
 			glUniform1i(fill_gbuffer_shader_locations.specular_texture, 1);
 			glUniform1i(fill_gbuffer_shader_locations.normals_texture, 2);
 			glUniform1i(fill_gbuffer_shader_locations.opacity_texture, 3);
+			glUniform1i(fill_gbuffer_shader_locations.height_texture, 4);
 
 			for (std::size_t i = 0; i < scene_geometry.size(); ++i)
 			{
@@ -678,6 +692,10 @@ edan35::Assignment2::run()
 				glBindSampler(3u, texture_data.opacity_texture_id != 0u ? mipmap_sampler : default_sampler);
 				glActiveTexture(GL_TEXTURE3);
 				glBindTexture(GL_TEXTURE_2D, texture_data.opacity_texture_id != 0u ? texture_data.opacity_texture_id : debug_texture_id);
+
+				glBindSampler(3u, texture_data.height_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE4);
+				glBindTexture(GL_TEXTURE_2D, texture_data.height_texture_id != 0u ? texture_data.height_texture_id : debug_texture_id);
 
 				glBindVertexArray(geometry.vao);
 				if (geometry.ibo != 0u)
@@ -1335,6 +1353,8 @@ void fillGBufferShaderLocations(GLuint gbuffer_shader, GBufferShaderLocations& l
 	locations.has_specular_texture = glGetUniformLocation(gbuffer_shader, "has_specular_texture");
 	locations.has_normals_texture = glGetUniformLocation(gbuffer_shader, "has_normals_texture");
 	locations.has_opacity_texture = glGetUniformLocation(gbuffer_shader, "has_opacity_texture");
+	locations.height_texture = glGetUniformLocation(gbuffer_shader, "height_texture");
+
 
 	glUniformBlockBinding(gbuffer_shader, locations.ubo_CameraViewProjTransforms, toU(UBO::CameraViewProjTransforms));
 
