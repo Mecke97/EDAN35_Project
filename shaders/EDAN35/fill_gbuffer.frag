@@ -1,13 +1,17 @@
 #version 410
 
+uniform float elapsed_time;
 uniform bool has_diffuse_texture;
 uniform bool has_specular_texture;
 uniform bool has_normals_texture;
 uniform bool has_opacity_texture;
+uniform bool has_waves_texture;
 uniform sampler2D diffuse_texture;
 uniform sampler2D specular_texture;
 uniform sampler2D normals_texture;
 uniform sampler2D opacity_texture;
+uniform sampler2D waves_texture1;
+uniform sampler2D waves_texture2;
 uniform mat4 normal_model_to_world;
 
 in VS_OUT {
@@ -21,6 +25,46 @@ layout (location = 0) out vec4 geometry_diffuse;
 layout (location = 1) out vec4 geometry_specular;
 layout (location = 2) out vec4 geometry_normal;
 
+float random(float seed) {
+	return fract(sin(seed) * 100000.0);
+}
+
+vec3 read_normal() {
+	vec2 tex_scale1 = vec2(random(4.0), random(2.0)) * 50;
+	vec2 tex_scale2 = vec2(random(5.0), random(1.0)) * 100;
+	float norm_time = mod(elapsed_time, 100.0);
+	vec2 norm_speed1 = vec2(1, 1) * 0.003;
+	vec2 norm_speed2 = -norm_speed1;
+
+	vec2 uv = fs_in.texcoord;
+
+	vec2 ncoord0 = uv * tex_scale1 + norm_time * norm_speed1;
+	vec2 ncoord1 = uv * tex_scale1 * 2 + norm_time * norm_speed1 * 4;
+	vec2 ncoord2 = uv * tex_scale1 * 4 + norm_time * norm_speed1 * 8;
+
+	vec2 ncoord3 = uv * tex_scale2 + norm_time * norm_speed2;
+	vec2 ncoord4 = uv * tex_scale2 * 2 + norm_time * norm_speed2 * 4;
+	vec2 ncoord5 = uv * tex_scale2 * 4 + norm_time * norm_speed2 * 8;
+
+	vec4 bump = vec4(0.0);
+
+	bump += texture(waves_texture1, ncoord0) * 2 - 1;
+	bump += texture(waves_texture1, ncoord1) * 2 - 1;
+	bump += texture(waves_texture1, ncoord2) * 2 - 1;
+
+	bump += texture(waves_texture2, ncoord3) * 2 - 1;
+	bump += texture(waves_texture2, ncoord4) * 2 - 1;
+	bump += texture(waves_texture2, ncoord5) * 2 - 1;
+
+	vec3 t = vec3(1.0, -fs_in.normal.x, 0.0);
+	vec3 b = vec3(0.0, -fs_in.normal.z, 1.0);
+	vec3 n = fs_in.normal;
+	
+	mat3 TBN = mat3(t, b, n);
+
+	bump.xyz = normalize(TBN * vec3(bump));
+	return bump.xyz;
+}
 
 void main()
 {
@@ -47,5 +91,12 @@ void main()
 		geometry_normal.xyz = normalize(T * tex_norm.x + B * tex_norm.y + N * tex_norm.z) * 0.5 + 0.5;
 	} else {
 		geometry_normal.xyz = N * 0.5 + 0.5;
+	}
+
+	float wave_scale = 200.0;
+
+	if(has_waves_texture && has_specular_texture && geometry_specular.r > 0.99) {
+//		vec4 tex_norm = texture(waves_texture, fs_in.texcoord * wave_scale) * 2.0 - 1.0;
+		geometry_normal.xyz = read_normal() * 0.5 + 0.5;
 	}
 }

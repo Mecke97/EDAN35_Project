@@ -28,13 +28,22 @@ out VS_OUT {
 	vec3 binormal;
 } vs_out;
 
-
 void main() {
 	float height_scale = 1;
 	float height_pow = 2.5;
 	float height_offset = 0.055;
 	vec3 _vertex = vertex;
-	float height = max(texture2D(height_texture, texcoord.xy).r - height_offset, 0.0);
+
+	float height;
+	float edge_correction = 0.01;
+	if(texcoord.x < edge_correction || texcoord.y < edge_correction || texcoord.y > 1 - edge_correction) {
+		height = 0;
+	} else {
+		height = texture2D(height_texture, texcoord.xy).r;
+	}
+
+	height = max(height - height_offset, 0.0);
+
 	_vertex += pow(height, height_pow) * height_scale * normalize(normal);
 	vs_out.normal   = normalize(normal);
 	vs_out.texcoord = texcoord.xy;

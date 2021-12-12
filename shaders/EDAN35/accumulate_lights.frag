@@ -76,7 +76,7 @@ void main()
 
 	shadow_depth /= pow(nbr, 2);
 
-	float shininess = 10;
+	float shininess = 30;
 
 	float intensity = light_intensity / pow(length(v2l),2.0);
 
