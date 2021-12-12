@@ -30,10 +30,12 @@ out VS_OUT {
 
 
 void main() {
-	float height_scale = 0.3;
+	float height_scale = 1;
+	float height_pow = 2.5;
+	float height_offset = 0.055;
 	vec3 _vertex = vertex;
-	float height = (texture2D(height_texture, texcoord.xy).r - 0.5) * 2.0;
-	_vertex += height * height_scale * normalize(normal);
+	float height = max(texture2D(height_texture, texcoord.xy).r - height_offset, 0.0);
+	_vertex += pow(height, height_pow) * height_scale * normalize(normal);
 	vs_out.normal   = normalize(normal);
 	vs_out.texcoord = texcoord.xy;
 	vs_out.tangent  = normalize(tangent);

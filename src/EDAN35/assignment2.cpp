@@ -216,8 +216,8 @@ edan35::Assignment2::run()
 	float earth_radius = 10.0f;
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
-	auto earth_geometry = parametric_shapes::createSphere(earth_radius * constant::scale_lengths, 1000, 1000);
 	GLuint earth_height_tex = bonobo::loadTexture2D(config::resources_path("project/earth_height.jpg"));
+	auto earth_geometry = parametric_shapes::createSphere(earth_radius * constant::scale_lengths, 10800/2, 5400/2);
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 	earth_geometry.bindings.insert(std::make_pair("specular_texture", earth_specular_tex));
 	earth_geometry.bindings.insert(std::make_pair("height_texture", earth_height_tex));
@@ -374,19 +374,8 @@ edan35::Assignment2::run()
 	//
 	// Setup lights properties
 	//
-
-
-	//std::array<TRSTransformf, constant::lights_nb> lightTransforms;
-	//std::array<glm::vec3, constant::lights_nb> lightColors;
-
 	bool are_lights_paused = false;
 
-	//for (size_t i = 0; i < static_cast<size_t>(lights_nb); ++i) {
-	//	lightTransforms[i].SetTranslate(glm::vec3(0.0f, 1.25f, 0.0f) * constant::scale_lengths);
-	//	lightColors[i] = glm::vec3(0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)),
-	//	                           0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)),
-	//	                           0.5f + 0.5f * (static_cast<float>(rand()) / static_cast<float>(RAND_MAX)));
-	//}
 
 	float const lightProjectionNearPlane = 0.01f * constant::scale_lengths;
 	float const lightProjectionFarPlane = 100.0f * constant::scale_lengths;
@@ -535,7 +524,7 @@ edan35::Assignment2::run()
 
 		glfwPollEvents();
 		inputHandler.Advance();
-		//mCamera.Update(deltaTimeUs, inputHandler);
+		mCamera.Update(deltaTimeUs, inputHandler);
 
 		camera_view_proj_transforms.view_projection = mCamera.GetWorldToClipMatrix();
 		camera_view_proj_transforms.view_projection_inverse = mCamera.GetClipToWorldMatrix();
@@ -625,8 +614,8 @@ edan35::Assignment2::run()
 		plane.get_transform().LookTowards(-l_dir);
 
 		auto plane_pos = plane.get_transform().GetTranslation();
-		mCamera.mWorld.SetTranslate(plane_pos + dir * camera_height);
-		mCamera.mWorld.LookTowards(-dir);
+		//mCamera.mWorld.SetTranslate(plane_pos + dir * camera_height);
+		//mCamera.mWorld.LookTowards(-dir);
 
 
 		//
@@ -693,7 +682,7 @@ edan35::Assignment2::run()
 				glActiveTexture(GL_TEXTURE3);
 				glBindTexture(GL_TEXTURE_2D, texture_data.opacity_texture_id != 0u ? texture_data.opacity_texture_id : debug_texture_id);
 
-				glBindSampler(3u, texture_data.height_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glBindSampler(4u, texture_data.height_texture_id != 0u ? mipmap_sampler : default_sampler);
 				glActiveTexture(GL_TEXTURE4);
 				glBindTexture(GL_TEXTURE_2D, texture_data.height_texture_id != 0u ? texture_data.height_texture_id : debug_texture_id);
 
