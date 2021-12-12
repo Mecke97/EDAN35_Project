@@ -530,6 +530,7 @@ edan35::Assignment2::run()
 
 	Airplane airplane;
 	airplane.node = &plane;
+	airplane.move_speed = 1.0f;
 
 	//Main loop
 	while (!glfwWindowShouldClose(window)) {
@@ -602,11 +603,11 @@ edan35::Assignment2::run()
 
 		if (!inputHandler.IsKeyboardCapturedByUI())
 		{
-			if ((inputHandler.GetKeycodeState(GLFW_KEY_A) & PRESSED)) airplane.move_dir += airplane.turn_speed * deltaTimeS;
-			if ((inputHandler.GetKeycodeState(GLFW_KEY_D) & PRESSED)) airplane.move_dir -= airplane.turn_speed * deltaTimeS;
+			if ((inputHandler.GetKeycodeState(GLFW_KEY_A) & PRESSED)) airplane.move_dir -= airplane.turn_speed * deltaTimeS;
+			if ((inputHandler.GetKeycodeState(GLFW_KEY_D) & PRESSED)) airplane.move_dir += airplane.turn_speed * deltaTimeS;
 		}
 
-		airplane.angular_velocity = glm::normalize(glm::vec2(glm::sin(airplane.move_dir), glm::cos(airplane.move_dir))) * airplane.move_speed;
+		airplane.angular_velocity = glm::vec2(glm::sin(airplane.move_dir), glm::cos(airplane.move_dir)) * airplane.move_speed;
 
 		airplane.latitude += glm::radians(airplane.angular_velocity.x) * deltaTimeS;
 		airplane.longitude += glm::radians(airplane.angular_velocity.y) * deltaTimeS;
@@ -621,7 +622,20 @@ edan35::Assignment2::run()
 							 -sin_long * cos_lat);
 		auto new_pos = dir * (earth_radius + plane_elevation);
 
-		plane.get_transform().SetTranslate(new_pos);
+		//plane.get_transform().SetTranslate(new_pos);
+
+		auto to_center = -glm::normalize(plane.get_transform().GetTranslation());
+		auto up = glm::vec3(0, 1, 0);
+		auto rot = glm::quat(glm::cos(0.5f * airplane.move_dir), to_center * glm::sin(0.5f * airplane.move_dir));
+
+		bool up_aligned = glm::abs(glm::dot(to_center, up)) > 0.9999f;
+		auto move_dir = glm::rotate(rot, glm::normalize(glm::cross(up_aligned ? glm::vec3(1, 0, 0) : up, to_center)));
+
+		
+		plane.get_transform().Translate(move_dir * airplane.move_speed * deltaTimeS);
+		if (up_aligned) plane.get_transform().Translate(-move_dir);
+		auto correction_v = -to_center * (earth_radius + plane_elevation) - plane.get_transform().GetTranslation();
+		//plane.get_transform().Translate(correction_v);
 
 		float l_cos_long = glm::cos(airplane.longitude + glm::radians(airplane.angular_velocity.y) * deltaTimeS);
 		float l_cos_lat = glm::cos(airplane.latitude + glm::radians(airplane.angular_velocity.x) * deltaTimeS);
@@ -634,13 +648,16 @@ edan35::Assignment2::run()
 		auto l_pos = l_pos_dir * (earth_radius + plane_elevation);
 		auto l_dir = l_pos - new_pos;
 
-		plane.get_transform().LookTowards(-l_dir);
+		//plane.get_transform().LookTowards(glm::normalize(-l_dir), glm::normalize(dir));
+		plane.get_transform().LookTowards(glm::normalize(-move_dir), glm::normalize(-to_center));
 
 		if (track_plane)
 		{
 			auto plane_pos = plane.get_transform().GetTranslation();
-			mCamera.mWorld.SetTranslate(plane_pos + dir * camera_height);
-			mCamera.mWorld.LookTowards(-dir);
+			//mCamera.mWorld.SetTranslate(plane_pos + dir * camera_height);
+			//mCamera.mWorld.LookTowards(glm::normalize(-dir), glm::normalize(l_dir));
+			mCamera.mWorld.SetTranslate(plane_pos - to_center * camera_height);
+			mCamera.mWorld.LookTowards(glm::normalize(to_center), glm::normalize(move_dir));
 		}
 
 
