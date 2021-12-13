@@ -29,6 +29,9 @@ namespace constant
 	constexpr uint32_t shadowmap_res_x = 1024;
 	constexpr uint32_t shadowmap_res_y = 1024;
 
+	constexpr uint32_t earth_res_x = 10800;
+	constexpr uint32_t earth_res_y = 5400;
+
 	constexpr float  scale_lengths       = 1.0f; // The scene is expressed in centimetres rather than metres, hence the x100.
 
 	constexpr size_t lights_nb           = 100;
@@ -52,6 +55,7 @@ namespace
 		LightDiffuseContribution,
 		LightSpecularContribution,
 		Result,
+		Flood,
 		Count
 	};
 	using Textures = std::array<GLuint, toU(Texture::Count)>;
@@ -70,6 +74,7 @@ namespace
 	enum class FBO : uint32_t {
 		GBuffer = 0u,
 		ShadowMap,
+		JumpFlood,
 		LightAccumulation,
 		Resolve,
 		FinalWithDepth,
@@ -145,6 +150,7 @@ namespace
 		GLuint waves_texture1{ 0u };
 		GLuint waves_texture2{ 0u };
 		GLuint earth_normal_texture{ 0u };
+		GLuint foam_texture{ 0u };
 		GLuint elapsed_time{ 0u };
 
 	};
@@ -389,6 +395,17 @@ edan35::Assignment2::run()
 		return;
 	}
 
+	GLuint jump_flood_shader = 0u;
+	program_manager.CreateAndRegisterProgram("Jump flood",
+											{ { ShaderType::vertex, "EDAN35/jump_flood.vert" },
+											  { ShaderType::fragment, "EDAN35/jump_flood.frag" } },
+											jump_flood_shader);
+	if (jump_flood_shader == 0u)
+	{
+		LogError("Failed to load jump flood shader");
+		return;
+	}
+
 	auto const set_uniforms = [](GLuint /*program*/){};
 
 	ViewProjTransforms camera_view_proj_transforms;
@@ -543,6 +560,9 @@ edan35::Assignment2::run()
 	airplane.node = &plane;
 	airplane.move_speed = 1.0f;
 
+
+	auto jump_flood_geometry = parametric_shapes::createQuad(1, 1);
+
 	//Main loop
 	while (!glfwWindowShouldClose(window)) {
 		auto const nowTime = std::chrono::high_resolution_clock::now();
@@ -683,6 +703,40 @@ edan35::Assignment2::run()
 
 		if (!shader_reload_failed) {
 			//
+			// Pass 0: Update jump flood texture
+			//
+
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fbos[toU(FBO::JumpFlood)]);
+			glViewport(0, 0, constant::earth_res_x, constant::earth_res_y);
+
+			glUseProgram(jump_flood_shader);
+
+			glUniform1i(glGetUniformLocation(jump_flood_shader, "is_init"), first_frame ? 1 : 0);
+			glUniform2f(glGetUniformLocation(jump_flood_shader, "texel_size"), 1.0f/ constant::earth_res_x, 1.0f/ constant::earth_res_y);
+
+			auto const sampler = samplers[toU(Sampler::Nearest)];
+
+			glUniform1i(glGetUniformLocation(jump_flood_shader, "flood_texture"), 0);
+			glBindSampler(0u, sampler);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, textures[toU(Texture::Flood)]);
+
+			glUniform1i(glGetUniformLocation(jump_flood_shader, "specular_texture"), 1);
+			glBindSampler(1u, sampler);
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, earth_specular_tex);
+
+			glBindVertexArray(jump_flood_geometry.vao);
+			if (jump_flood_geometry.ibo != 0u)
+				glDrawElements(jump_flood_geometry.drawing_mode, jump_flood_geometry.indices_nb, GL_UNSIGNED_INT, reinterpret_cast<GLvoid const*>(0x0));
+			else
+				glDrawArrays(jump_flood_geometry.drawing_mode, 0, jump_flood_geometry.vertices_nb);
+
+			glBindTexture(GL_TEXTURE_2D, 0);
+			glBindVertexArray(0u);
+			glUseProgram(0u);
+
+			//
 			// Pass 1: Render scene into the g-buffer
 			//
 			utils::opengl::debug::beginDebugGroup("Fill G-buffer");
@@ -701,7 +755,8 @@ edan35::Assignment2::run()
 			glUniform1i(fill_gbuffer_shader_locations.height_texture, 4);
 			glUniform1i(fill_gbuffer_shader_locations.waves_texture1, 5);
 			glUniform1i(fill_gbuffer_shader_locations.waves_texture2, 6);
-			glUniform1i(fill_gbuffer_shader_locations.earth_normal_texture, 7);
+			glUniform1i(fill_gbuffer_shader_locations.foam_texture, 7);
+			glUniform1i(fill_gbuffer_shader_locations.earth_normal_texture, 8);
 
 
 			glUniform1f(fill_gbuffer_shader_locations.elapsed_time, seconds_nb);
@@ -723,7 +778,7 @@ edan35::Assignment2::run()
 				auto const mipmap_sampler = samplers[toU(Sampler::Mipmaps)];
 
 				glUniform1i(fill_gbuffer_shader_locations.has_diffuse_texture, texture_data.diffuse_texture_id != 0u ? 1 : 0);
-				glBindSampler(0u, texture_data.diffuse_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glBindSampler(0u, default_sampler);
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, texture_data.diffuse_texture_id != 0u ? texture_data.diffuse_texture_id : debug_texture_id);
 
@@ -746,7 +801,6 @@ edan35::Assignment2::run()
 				glActiveTexture(GL_TEXTURE4);
 				glBindTexture(GL_TEXTURE_2D, texture_data.height_texture_id != 0u ? texture_data.height_texture_id : debug_texture_id);
 
-
 				bool has_wave = texture_data.waves_texture1_id != 0u && texture_data.waves_texture2_id != 0u;
 				glUniform1i(fill_gbuffer_shader_locations.has_waves_texture, has_wave ? 1 : 0);
 				glBindSampler(5u, has_wave ? mipmap_sampler : default_sampler);
@@ -756,8 +810,12 @@ edan35::Assignment2::run()
 				glActiveTexture(GL_TEXTURE6);
 				glBindTexture(GL_TEXTURE_2D, has_wave ? texture_data.waves_texture2_id : debug_texture_id);
 
-				glBindSampler(7u, texture_data.earth_normal_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glBindSampler(7u, samplers[toU(Sampler::Linear)]);
 				glActiveTexture(GL_TEXTURE7);
+				glBindTexture(GL_TEXTURE_2D,  textures[toU(Texture::Flood)]);
+
+				glBindSampler(8u, texture_data.earth_normal_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE8);
 				glBindTexture(GL_TEXTURE_2D, texture_data.earth_normal_texture_id != 0u ? texture_data.earth_normal_texture_id : debug_texture_id);
 
 				glBindVertexArray(geometry.vao);
@@ -1059,13 +1117,13 @@ edan35::Assignment2::run()
 		// Output content of the g-buffer as well as of the shadowmap, for debugging purposes
 		//
 		if (show_textures) {
-			bonobo::displayTexture({-0.95f, -0.95f}, {-0.55f, -0.55f}, textures[toU(Texture::GBufferDiffuse)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);
-			bonobo::displayTexture({-0.95f,  0.55f}, {-0.55f,  0.95f}, textures[toU(Texture::ShadowMap)],                 samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, lightProjectionNearPlane, lightProjectionFarPlane);
-			bonobo::displayTexture({-0.45f,  0.55f}, {-0.05f,  0.95f}, textures[toU(Texture::LightDiffuseContribution)],  samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({ 0.05f,  0.55f}, { 0.45f,  0.95f}, textures[toU(Texture::LightSpecularContribution)], samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({-0.95f, -0.95f}, {-0.05f, -0.05f}, textures[toU(Texture::Flood)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			//bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			//bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			//bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);
+			//bonobo::displayTexture({-0.95f,  0.55f}, {-0.55f,  0.95f}, textures[toU(Texture::ShadowMap)],                 samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, lightProjectionNearPlane, lightProjectionFarPlane);
+			//bonobo::displayTexture({-0.45f,  0.55f}, {-0.05f,  0.95f}, textures[toU(Texture::LightDiffuseContribution)],  samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			//bonobo::displayTexture({ 0.05f,  0.55f}, { 0.45f,  0.95f}, textures[toU(Texture::LightSpecularContribution)], samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
 		}
 
 		//
@@ -1244,6 +1302,10 @@ Textures createTextures(GLsizei framebuffer_width, GLsizei framebuffer_height)
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, framebuffer_width, framebuffer_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 	utils::opengl::debug::nameObject(GL_TEXTURE, textures[toU(Texture::Result)], "Final result");
 
+	glBindTexture(GL_TEXTURE_2D, textures[toU(Texture::Flood)]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, constant::earth_res_x, constant::earth_res_y, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	utils::opengl::debug::nameObject(GL_TEXTURE, textures[toU(Texture::Flood)], "JumpFlood");
+
 	glBindTexture(GL_TEXTURE_2D, 0u);
 	return textures;
 }
@@ -1290,6 +1352,16 @@ FBOs createFramebufferObjects(Textures const& textures)
 
 	FBOs fbos;
 	glGenFramebuffers(static_cast<GLsizei>(fbos.size()), fbos.data());
+
+	glBindFramebuffer(GL_FRAMEBUFFER, fbos[toU(FBO::JumpFlood)]);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[toU(Texture::Flood)], 0);
+
+	std::array<GLenum, 3> const flood_buffer_draws = {
+		GL_COLOR_ATTACHMENT0, // The fragment shader output at location 0 will be written to colour attachment 0 (i.e. the flood texture).
+	};
+	glDrawBuffers(static_cast<GLsizei>(flood_buffer_draws.size()), flood_buffer_draws.data());
+	validate_fbo("FloodBuffer");
+	utils::opengl::debug::nameObject(GL_FRAMEBUFFER, fbos[toU(FBO::JumpFlood)], "FloodBuffer");
 
 	glBindFramebuffer(GL_FRAMEBUFFER, fbos[toU(FBO::GBuffer)]);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textures[toU(Texture::GBufferDiffuse)], 0);
@@ -1424,6 +1496,7 @@ void fillGBufferShaderLocations(GLuint gbuffer_shader, GBufferShaderLocations& l
 	locations.has_waves_texture = glGetUniformLocation(gbuffer_shader, "has_waves_texture");
 	locations.waves_texture1 = glGetUniformLocation(gbuffer_shader, "waves_texture1");
 	locations.waves_texture2 = glGetUniformLocation(gbuffer_shader, "waves_texture2");
+	locations.foam_texture = glGetUniformLocation(gbuffer_shader, "foam_texture");
 
 	locations.elapsed_time = glGetUniformLocation(gbuffer_shader, "elapsed_time");
 
