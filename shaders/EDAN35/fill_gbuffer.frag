@@ -12,6 +12,7 @@ uniform sampler2D normals_texture;
 uniform sampler2D opacity_texture;
 uniform sampler2D waves_texture1;
 uniform sampler2D waves_texture2;
+uniform sampler2D earth_normal_texture;
 uniform mat4 normal_model_to_world;
 
 in VS_OUT {
@@ -90,7 +91,9 @@ void main()
 		vec4 tex_norm = texture(normals_texture, fs_in.texcoord) * 2.0 - 1.0;
 		geometry_normal.xyz = normalize(T * tex_norm.x + B * tex_norm.y + N * tex_norm.z) * 0.5 + 0.5;
 	} else {
-		geometry_normal.xyz = N * 0.5 + 0.5;
+		//geometry_normal.xyz = N * 0.5 + 0.5;
+		geometry_normal.xyz = texture(earth_normal_texture, fs_in.texcoord).rgb;
+		geometry_normal.xyz = normalize(geometry_normal.xyz * 2.0 - 1.0);
 	}
 
 	float wave_scale = 200.0;

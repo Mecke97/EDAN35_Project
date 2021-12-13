@@ -123,6 +123,7 @@ namespace
 		GLuint height_texture_id{ 0u };
 		GLuint waves_texture1_id{ 0u };
 		GLuint waves_texture2_id{ 0u };
+		GLuint earth_normal_texture_id{ 0u };
 
 	};
 
@@ -143,6 +144,7 @@ namespace
 		GLuint height_texture{ 0u };
 		GLuint waves_texture1{ 0u };
 		GLuint waves_texture2{ 0u };
+		GLuint earth_normal_texture{ 0u };
 		GLuint elapsed_time{ 0u };
 
 	};
@@ -223,12 +225,15 @@ edan35::Assignment2::run()
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
 	GLuint earth_height_tex = bonobo::loadTexture2D(config::resources_path("project/earth_height.jpg"));
+	GLuint earth_normal_tex = bonobo::loadTexture2D(config::resources_path("project/earth_normal.jpg"));
 	GLuint earth_wave_tex1 = bonobo::loadTexture2D(config::resources_path("project/waves1.jpg"));
 	GLuint earth_wave_tex2 = bonobo::loadTexture2D(config::resources_path("project/waves2.jpg"));
 	auto earth_geometry = parametric_shapes::createSphere(earth_radius * constant::scale_lengths, 10800/2, 5400/2);
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 	earth_geometry.bindings.insert(std::make_pair("specular_texture", earth_specular_tex));
 	earth_geometry.bindings.insert(std::make_pair("height_texture", earth_height_tex));
+	earth_geometry.bindings.insert(std::make_pair("earth_normal_texture", earth_normal_tex));
+
 
 	earth_geometry.bindings.insert(std::make_pair("waves_texture1", earth_wave_tex1));
 	earth_geometry.bindings.insert(std::make_pair("waves_texture2", earth_wave_tex2));
@@ -247,6 +252,8 @@ edan35::Assignment2::run()
 		auto const normals_texture = geometry.bindings.find("normals_texture");
 		auto const opacity_texture = geometry.bindings.find("opacity_texture");
 		auto const height_texture = geometry.bindings.find("height_texture");
+		auto const earth_normal_texture = geometry.bindings.find("earth_normal_texture");
+
 
 		auto const waves_texture1 = geometry.bindings.find("waves_texture1");
 		auto const waves_texture2 = geometry.bindings.find("waves_texture2");
@@ -278,6 +285,10 @@ edan35::Assignment2::run()
 		{
 			data.waves_texture1_id = waves_texture1->second;
 			data.waves_texture2_id = waves_texture2->second;
+		}
+		if (earth_normal_texture != geometry.bindings.end())
+		{
+			data.earth_normal_texture_id = earth_normal_texture->second;
 		}
 		sponza_geometry_texture_data.emplace_back(std::move(data));
 	}
@@ -690,6 +701,8 @@ edan35::Assignment2::run()
 			glUniform1i(fill_gbuffer_shader_locations.height_texture, 4);
 			glUniform1i(fill_gbuffer_shader_locations.waves_texture1, 5);
 			glUniform1i(fill_gbuffer_shader_locations.waves_texture2, 6);
+			glUniform1i(fill_gbuffer_shader_locations.earth_normal_texture, 7);
+
 
 			glUniform1f(fill_gbuffer_shader_locations.elapsed_time, seconds_nb);
 
@@ -733,6 +746,7 @@ edan35::Assignment2::run()
 				glActiveTexture(GL_TEXTURE4);
 				glBindTexture(GL_TEXTURE_2D, texture_data.height_texture_id != 0u ? texture_data.height_texture_id : debug_texture_id);
 
+
 				bool has_wave = texture_data.waves_texture1_id != 0u && texture_data.waves_texture2_id != 0u;
 				glUniform1i(fill_gbuffer_shader_locations.has_waves_texture, has_wave ? 1 : 0);
 				glBindSampler(5u, has_wave ? mipmap_sampler : default_sampler);
@@ -741,6 +755,10 @@ edan35::Assignment2::run()
 				glBindSampler(6u, has_wave ? mipmap_sampler : default_sampler);
 				glActiveTexture(GL_TEXTURE6);
 				glBindTexture(GL_TEXTURE_2D, has_wave ? texture_data.waves_texture2_id : debug_texture_id);
+
+				glBindSampler(7u, texture_data.earth_normal_texture_id != 0u ? mipmap_sampler : default_sampler);
+				glActiveTexture(GL_TEXTURE7);
+				glBindTexture(GL_TEXTURE_2D, texture_data.earth_normal_texture_id != 0u ? texture_data.earth_normal_texture_id : debug_texture_id);
 
 				glBindVertexArray(geometry.vao);
 				if (geometry.ibo != 0u)
@@ -1400,6 +1418,8 @@ void fillGBufferShaderLocations(GLuint gbuffer_shader, GBufferShaderLocations& l
 	locations.has_normals_texture = glGetUniformLocation(gbuffer_shader, "has_normals_texture");
 	locations.has_opacity_texture = glGetUniformLocation(gbuffer_shader, "has_opacity_texture");
 	locations.height_texture = glGetUniformLocation(gbuffer_shader, "height_texture");
+	locations.earth_normal_texture = glGetUniformLocation(gbuffer_shader, "earth_normal_texture");
+
 
 	locations.has_waves_texture = glGetUniformLocation(gbuffer_shader, "has_waves_texture");
 	locations.waves_texture1 = glGetUniformLocation(gbuffer_shader, "waves_texture1");
