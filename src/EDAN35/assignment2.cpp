@@ -231,14 +231,14 @@ edan35::Assignment2::run()
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
 	GLuint earth_height_tex = bonobo::loadTexture2D(config::resources_path("project/earth_height.jpg"));
-	GLuint earth_normal_tex = bonobo::loadTexture2D(config::resources_path("project/earth_normal.jpg"));
+	GLuint earth_normal_tex = bonobo::loadTexture2D(config::resources_path("project/canvas.png"));
 	GLuint earth_wave_tex1 = bonobo::loadTexture2D(config::resources_path("project/waves1.jpg"));
 	GLuint earth_wave_tex2 = bonobo::loadTexture2D(config::resources_path("project/waves2.jpg"));
 	auto earth_geometry = parametric_shapes::createSphere(earth_radius * constant::scale_lengths, 10800/2, 5400/2);
 	earth_geometry.bindings.insert(std::make_pair("diffuse_texture", earth_diffuse_tex));
 	earth_geometry.bindings.insert(std::make_pair("specular_texture", earth_specular_tex));
 	earth_geometry.bindings.insert(std::make_pair("height_texture", earth_height_tex));
-	earth_geometry.bindings.insert(std::make_pair("earth_normal_texture", earth_normal_tex));
+	earth_geometry.bindings.insert(std::make_pair("normals_texture", earth_normal_tex));
 
 
 	earth_geometry.bindings.insert(std::make_pair("waves_texture1", earth_wave_tex1));
@@ -258,7 +258,7 @@ edan35::Assignment2::run()
 		auto const normals_texture = geometry.bindings.find("normals_texture");
 		auto const opacity_texture = geometry.bindings.find("opacity_texture");
 		auto const height_texture = geometry.bindings.find("height_texture");
-		auto const earth_normal_texture = geometry.bindings.find("earth_normal_texture");
+		auto const earth_normal_texture = geometry.bindings.find("normals_texture");
 
 
 		auto const waves_texture1 = geometry.bindings.find("waves_texture1");
@@ -1117,7 +1117,7 @@ edan35::Assignment2::run()
 		// Output content of the g-buffer as well as of the shadowmap, for debugging purposes
 		//
 		if (show_textures) {
-			bonobo::displayTexture({-0.95f, -0.95f}, {-0.55f, -0.55f}, textures[toU(Texture::Flood)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({-0.95f, -0.95f}, {-0.55f, -0.55f}, textures[toU(Texture::GBufferDiffuse)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
 			bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
 			bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
 			bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);

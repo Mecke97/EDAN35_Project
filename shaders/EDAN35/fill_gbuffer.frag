@@ -167,26 +167,47 @@ void main()
 		vec4 tex_norm = texture(normals_texture, fs_in.texcoord) * 2.0 - 1.0;
 		geometry_normal.xyz = normalize(T * tex_norm.x + B * tex_norm.y + N * tex_norm.z) * 0.5 + 0.5;
 	} else {
-		//geometry_normal.xyz = N * 0.5 + 0.5;
-		geometry_normal.xyz = texture(earth_normal_texture, fs_in.texcoord).rgb;
-		geometry_normal.xyz = normalize(geometry_normal.xyz * 2.0 - 1.0);
+		geometry_normal.xyz = N * 0.5 + 0.5;
 	}
 
 	vec3 foam_color = vec3(1.0);
 
-	if(has_waves_texture && geometry_specular.r > 0.9999) {
+	if(has_waves_texture && geometry_specular.r > 0.99) {
 		geometry_normal.xyz = read_normal() * 0.5 + 0.5;
-
-		vec4 foam = texture(foam_texture, fs_in.texcoord);
-		float foam_level = 1.0 - foam.b - foam.r;
 
 		float foam_period = 30;
 		float foam_freq = 0.09;
-		float foam_sine = (sin((foam_level + elapsed_time * foam_freq) * foam_period) + 1.0) * 0.5;
 		float foam_sharpness = 10;
-		float foam_strength = foam_sine * pow(foam_level, foam_sharpness);
-		float rf = cnoise(vec3(fs_in.texcoord * 100, elapsed_time *0.5))*0.5 + 0.5;
+		float foam_contr = 0.0;
 
-		geometry_diffuse.xyz += foam_color * foam_strength * pow(rf,3);
+//		vec2 texel_size = 1.0 / vec2(10800.0, 5400.0);
+//		float N = 3;
+//
+//		vec2 offset =  fs_in.texcoord - N * texel_size * 0.5;
+//		for(float i = 0; i < N-0.001; i++) {
+//			for(float j = 0; j < N-0.001; j++) {
+//				vec2 uv = offset + vec2(texel_size.x * i, texel_size.y * j);
+//				vec4 foam = texture(foam_texture, uv);
+//				float foam_level = 1.0 - foam.b - foam.r;
+//				float srf = cnoise(vec3(uv * 100, elapsed_time *0.1))*0.5 + 0.5;
+//				float foam_sine = (sin((srf + foam_level + elapsed_time * foam_freq) * foam_period) + 1.0) * 0.5;
+//				float foam_strength = foam_sine * pow(foam_level, foam_sharpness);
+//				float rf = cnoise(vec3(uv * 300, elapsed_time *0.5))*0.5 + 0.5;
+//
+//				foam_contr += foam_strength * pow(rf,3);
+//			}
+//		}
+//		foam_contr /= N*N;
+//
+		vec4 foam = texture(foam_texture, fs_in.texcoord);
+		float foam_level = 1.0 - foam.b - foam.r;
+		float srf = cnoise(vec3(fs_in.texcoord * 100, elapsed_time *0.1))*0.5 + 0.5;
+		float foam_sine = (sin((srf + foam_level + elapsed_time * foam_freq) * foam_period) + 1.0) * 0.5;
+		float foam_strength = foam_sine * pow(foam_level, foam_sharpness);
+		float rf = cnoise(vec3(fs_in.texcoord * 300, elapsed_time *0.5))*0.5 + 0.5;
+
+		foam_contr = foam_strength * pow(rf,3);
+
+		geometry_diffuse.xyz += foam_color * foam_contr;
 	}
 }
