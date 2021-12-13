@@ -172,14 +172,9 @@ void main()
 		geometry_normal.xyz = normalize(geometry_normal.xyz * 2.0 - 1.0);
 	}
 
-	float wave_scale = 200.0;
-	float foam_radius = 0.01;
 	vec3 foam_color = vec3(1.0);
-	float foam_samples = 128;
-	float delta_angle = TWO_PI / foam_samples;
-	float dist_to_land = 0;
 
-	if(has_waves_texture) {
+	if(has_waves_texture && geometry_specular.r > 0.9999) {
 		geometry_normal.xyz = read_normal() * 0.5 + 0.5;
 
 		vec4 foam = texture(foam_texture, fs_in.texcoord);

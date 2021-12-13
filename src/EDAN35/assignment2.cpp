@@ -1117,13 +1117,13 @@ edan35::Assignment2::run()
 		// Output content of the g-buffer as well as of the shadowmap, for debugging purposes
 		//
 		if (show_textures) {
-			bonobo::displayTexture({-0.95f, -0.95f}, {-0.05f, -0.05f}, textures[toU(Texture::Flood)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			//bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			//bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			//bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);
-			//bonobo::displayTexture({-0.95f,  0.55f}, {-0.55f,  0.95f}, textures[toU(Texture::ShadowMap)],                 samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, lightProjectionNearPlane, lightProjectionFarPlane);
-			//bonobo::displayTexture({-0.45f,  0.55f}, {-0.05f,  0.95f}, textures[toU(Texture::LightDiffuseContribution)],  samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			//bonobo::displayTexture({ 0.05f,  0.55f}, { 0.45f,  0.95f}, textures[toU(Texture::LightSpecularContribution)], samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({-0.95f, -0.95f}, {-0.55f, -0.55f}, textures[toU(Texture::Flood)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);
+			bonobo::displayTexture({-0.95f,  0.55f}, {-0.55f,  0.95f}, textures[toU(Texture::ShadowMap)],                 samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, lightProjectionNearPlane, lightProjectionFarPlane);
+			bonobo::displayTexture({-0.45f,  0.55f}, {-0.05f,  0.95f}, textures[toU(Texture::LightDiffuseContribution)],  samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+			bonobo::displayTexture({ 0.05f,  0.55f}, { 0.45f,  0.95f}, textures[toU(Texture::LightSpecularContribution)], samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
 		}
 
 		//
