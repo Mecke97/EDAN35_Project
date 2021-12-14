@@ -13,7 +13,7 @@ layout (std140) uniform CameraViewProjTransforms
 
 layout (std140) uniform LightViewProjTransforms
 {
-	ViewProjTransforms lights[4];
+	ViewProjTransforms lights[100];
 };
 
 uniform int light_index;

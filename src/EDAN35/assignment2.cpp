@@ -26,8 +26,8 @@
 
 namespace constant
 {
-	constexpr uint32_t shadowmap_res_x = 1024;
-	constexpr uint32_t shadowmap_res_y = 1024;
+	constexpr uint32_t shadowmap_res_x = 1024 * 2;
+	constexpr uint32_t shadowmap_res_y = 1024 * 2;
 
 	constexpr uint32_t earth_res_x = 10800;
 	constexpr uint32_t earth_res_y = 5400;
@@ -206,7 +206,7 @@ namespace
 edan35::Assignment2::Assignment2(WindowManager& windowManager) :
 	mCamera(0.5f * glm::half_pi<float>(),
 	        static_cast<float>(config::resolution_x) / static_cast<float>(config::resolution_y),
-	        0.01f * constant::scale_lengths, 1000.0f * constant::scale_lengths),
+	        0.01f * constant::scale_lengths, 3000.0f * constant::scale_lengths),
 	inputHandler(), mWindowManager(windowManager), window(nullptr)
 {
 	WindowManager::WindowDatum window_datum{ inputHandler, mCamera, config::resolution_x, config::resolution_y, 0, 0, 0, 0};
@@ -227,7 +227,7 @@ edan35::Assignment2::~Assignment2()
 void
 edan35::Assignment2::run()
 {
-	float earth_radius = 10.0f;
+	float earth_radius = 200.0f;
 	GLuint earth_diffuse_tex = bonobo::loadTexture2D(config::resources_path("project/earth_diffuse.jpg"));
 	GLuint earth_specular_tex = bonobo::loadTexture2D(config::resources_path("project/earth_specular.jpg"));
 	GLuint earth_height_tex = bonobo::loadTexture2D(config::resources_path("project/earth_height.jpg"));
@@ -307,7 +307,7 @@ edan35::Assignment2::run()
 	// Setup the camera
 	//
 
-	float camera_height = 5;
+	float camera_height = 25;
 	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + camera_height) * constant::scale_lengths);
 	mCamera.mMouseSensitivity = 0.003f;
 	mCamera.mMovementSpeed = 3.0f * constant::scale_lengths; // 3 m/s => 10.8 km/h.
@@ -427,7 +427,7 @@ edan35::Assignment2::run()
 
 
 	float const lightProjectionNearPlane = 0.01f * constant::scale_lengths;
-	float const lightProjectionFarPlane = 200.0f * constant::scale_lengths;
+	float const lightProjectionFarPlane = 100.0f * constant::scale_lengths;
 	auto lightProjection = glm::perspective(0.5f * glm::pi<float>(),
 	                                        static_cast<float>(constant::shadowmap_res_x) / static_cast<float>(constant::shadowmap_res_y),
 	                                        lightProjectionNearPlane, lightProjectionFarPlane);
@@ -435,10 +435,13 @@ edan35::Assignment2::run()
 	std::vector<ConeLight> lights;
 
 	ConeLight sun;
-	sun.angle_falloff = glm::radians(100.0f);
+	sun.angle_falloff = glm::radians(85.0f);
 	sun.color = glm::vec3(1.0f);
-	sun.intensity = 10650.0f;
-	sun.transform.SetTranslate(glm::vec3(0.0f, 0.0f, earth_radius + 100.0) * constant::scale_lengths);
+	sun.intensity = 40000.0f;
+
+	float sun_height = 70.0f;
+
+	sun.transform.SetTranslate(glm::vec3(0.0f, 0.0f, earth_radius + sun_height) * constant::scale_lengths);
 
 	lights.push_back(sun);
 
@@ -482,12 +485,12 @@ edan35::Assignment2::run()
 	Node plane;
 	plane.set_geometry(plane_geometry.at(0));
 
-	auto plane_elevation = 1.0f;
+	auto plane_elevation = 50.0f;
 	
 	plane.get_transform().SetTranslate(glm::vec3(0, 0, earth_radius + plane_elevation) * constant::scale_lengths);
 	plane.get_transform().RotateX(glm::radians(-90.0f));
 	plane.get_transform().RotateY(glm::radians(180.0f));
-	plane.get_transform().SetScale(0.005 * constant::scale_lengths);
+	plane.get_transform().SetScale(0.05 * constant::scale_lengths);
 
 	nodes.push_back(&plane);
 
@@ -558,10 +561,12 @@ edan35::Assignment2::run()
 
 	Airplane airplane;
 	airplane.node = &plane;
-	airplane.move_speed = 1.0f;
+	airplane.move_speed = 10.0f;
 
 
 	auto jump_flood_geometry = parametric_shapes::createQuad(1, 1);
+
+	float tilt_amount = 0.3f;
 
 	//Main loop
 	while (!glfwWindowShouldClose(window)) {
@@ -620,8 +625,8 @@ edan35::Assignment2::run()
 		for (size_t i = 0; i < lights.size(); ++i) {
 			auto& lightTransform = lights[i].transform;
 
-			auto const light_view_matrix = lightOffsetTransform.GetMatrixInverse() * lightTransform.GetMatrixInverse();
-			auto const light_world_matrix = glm::inverse(light_view_matrix) * coneScaleTransform.GetMatrix();
+			auto const light_view_matrix = lightTransform.GetMatrixInverse();
+			auto const light_world_matrix = glm::inverse(light_view_matrix);
 			auto const light_world_to_clip_matrix = lightProjection * light_view_matrix;
 
 			light_view_proj_transforms[i].view_projection = light_world_to_clip_matrix;
@@ -682,13 +687,20 @@ edan35::Assignment2::run()
 		//plane.get_transform().LookTowards(glm::normalize(-l_dir), glm::normalize(dir));
 		plane.get_transform().LookTowards(glm::normalize(-move_dir), glm::normalize(-to_center));
 
+		auto sun_offset = (plane.get_transform().GetRight() + plane.get_transform().GetBack()) * 30.0f * constant::scale_lengths;
+
+		lights[0].transform.SetTranslate(plane.get_transform().GetTranslation() + sun_offset - to_center * 20.0f);
+		lights[0].transform.LookTowards(glm::normalize(to_center), glm::normalize(move_dir));
+
 		if (track_plane)
 		{
 			auto plane_pos = plane.get_transform().GetTranslation();
-			//mCamera.mWorld.SetTranslate(plane_pos + dir * camera_height);
-			//mCamera.mWorld.LookTowards(glm::normalize(-dir), glm::normalize(l_dir));
-			mCamera.mWorld.SetTranslate(plane_pos - to_center * camera_height);
-			mCamera.mWorld.LookTowards(glm::normalize(to_center), glm::normalize(move_dir));
+			auto look_offset = glm::normalize(move_dir) * tilt_amount;
+			auto up_offset = glm::normalize(-to_center) * tilt_amount;
+			auto trans_offset = glm::normalize(-move_dir) * tilt_amount;
+
+			mCamera.mWorld.SetTranslate(plane_pos - to_center * camera_height + trans_offset * camera_height);
+			mCamera.mWorld.LookTowards(glm::normalize(to_center + look_offset), glm::normalize(move_dir + up_offset));
 		}
 
 
@@ -897,9 +909,9 @@ edan35::Assignment2::run()
 			// XXX: Is any clearing needed?
 			for (size_t i = 0; i < lights.size(); ++i) {
 				auto const& lightTransform = lights[i].transform;
-				auto const light_view_matrix = lightOffsetTransform.GetMatrixInverse() * lightTransform.GetMatrixInverse();
+				auto const light_view_matrix = lightTransform.GetMatrixInverse();
 				auto const light_world_matrix = glm::inverse(light_view_matrix) * coneScaleTransform.GetMatrix();
-				auto const light_world_to_clip_matrix = lightProjection * light_view_matrix;
+				//auto const light_world_to_clip_matrix = lightProjection * light_view_matrix;
 
 				//
 				// Pass 2.1: Generate shadow map for light i
@@ -1201,6 +1213,7 @@ edan35::Assignment2::run()
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Sun intensity", &(lights[0].intensity), 0.0f, 20000.0f);
+			ImGui::SliderFloat("Tilt", &tilt_amount, 0.0f, 1.0f);
 			ImGui::Checkbox("Track plane", &track_plane);
 		}
 		ImGui::End();
