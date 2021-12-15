@@ -567,6 +567,8 @@ edan35::Assignment2::run()
 	auto jump_flood_geometry = parametric_shapes::createQuad(1, 1);
 
 	float tilt_amount = 0.7f;
+	float catch_up = 1.6f;
+	bool smoothed_camera = false;
 
 	//Main loop
 	while (!glfwWindowShouldClose(window)) {
@@ -584,7 +586,11 @@ edan35::Assignment2::run()
 
 		glfwPollEvents();
 		inputHandler.Advance();
-		if(!track_plane) mCamera.Update(deltaTimeUs, inputHandler);
+		if (!track_plane)
+		{
+			mCamera.mWorld.LookTowards(mCamera.mWorld.GetFront(), glm::vec3(0.0f, 1.0, 0.0f));
+			mCamera.Update(deltaTimeUs, inputHandler);
+		}
 
 		camera_view_proj_transforms.view_projection = mCamera.GetWorldToClipMatrix();
 		camera_view_proj_transforms.view_projection_inverse = mCamera.GetClipToWorldMatrix();
@@ -638,29 +644,12 @@ edan35::Assignment2::run()
 		//
 
 		float movementModifier = 1.0f;
-		if (!inputHandler.IsKeyboardCapturedByUI())
+		if (!inputHandler.IsKeyboardCapturedByUI() && track_plane)
 		{
-			movementModifier = (inputHandler.GetKeycodeState(GLFW_KEY_LEFT_SHIFT) & PRESSED) ? 4.0f : 1.0f;
+			movementModifier = (inputHandler.GetKeycodeState(GLFW_KEY_LEFT_SHIFT) & PRESSED) ? 2.5f : 1.0f;
 			if ((inputHandler.GetKeycodeState(GLFW_KEY_A) & PRESSED)) airplane.move_dir -= airplane.turn_speed * deltaTimeS;
 			if ((inputHandler.GetKeycodeState(GLFW_KEY_D) & PRESSED)) airplane.move_dir += airplane.turn_speed * deltaTimeS;
 		}
-
-		airplane.angular_velocity = glm::vec2(glm::sin(airplane.move_dir), glm::cos(airplane.move_dir)) * airplane.move_speed * movementModifier;
-
-		airplane.latitude += glm::radians(airplane.angular_velocity.x) * deltaTimeS;
-		airplane.longitude += glm::radians(airplane.angular_velocity.y) * deltaTimeS;
-
-		float cos_long = glm::cos(airplane.longitude);
-		float cos_lat = glm::cos(airplane.latitude);
-		float sin_long = glm::sin(airplane.longitude);
-		float sin_lat = glm::sin(airplane.latitude);
-
-		auto dir = glm::vec3(cos_long * cos_lat,
-							 sin_lat,
-							 -sin_long * cos_lat);
-		auto new_pos = dir * (earth_radius + plane_elevation);
-
-		//plane.get_transform().SetTranslate(new_pos);
 
 		auto to_center = -glm::normalize(plane.get_transform().GetTranslation());
 		auto up = glm::vec3(0, 1, 0);
@@ -669,42 +658,43 @@ edan35::Assignment2::run()
 		bool up_aligned = glm::abs(glm::dot(to_center, up)) > 0.9999f;
 		auto move_dir = glm::rotate(rot, glm::normalize(glm::cross(up_aligned ? glm::vec3(1, 0, 0) : up, to_center)));
 
-		
+
 		plane.get_transform().Translate(move_dir * airplane.move_speed * deltaTimeS * movementModifier);
 		if (up_aligned) plane.get_transform().Translate(-move_dir);
-		auto correction_v = -to_center * (earth_radius + plane_elevation) - plane.get_transform().GetTranslation();
-		//plane.get_transform().Translate(correction_v);
+		auto to_center_new = -glm::normalize(plane.get_transform().GetTranslation());
+		auto correction_v = -to_center_new * (earth_radius + plane_elevation) - plane.get_transform().GetTranslation();
+		plane.get_transform().Translate(correction_v);
 
-		float l_cos_long = glm::cos(airplane.longitude + glm::radians(airplane.angular_velocity.y) * deltaTimeS);
-		float l_cos_lat = glm::cos(airplane.latitude + glm::radians(airplane.angular_velocity.x) * deltaTimeS);
-		float l_sin_long = glm::sin(airplane.longitude + glm::radians(airplane.angular_velocity.y) * deltaTimeS);
-		float l_sin_lat = glm::sin(airplane.latitude + glm::radians(airplane.angular_velocity.x) * deltaTimeS);
+		plane.get_transform().LookTowards(glm::normalize(-move_dir), glm::normalize(-to_center_new));
 
-		auto l_pos_dir = glm::vec3(l_cos_long * l_cos_lat,
-			l_sin_lat,
-			-l_sin_long * l_cos_lat);
-		auto l_pos = l_pos_dir * (earth_radius + plane_elevation);
-		auto l_dir = l_pos - new_pos;
-
-		//plane.get_transform().LookTowards(glm::normalize(-l_dir), glm::normalize(dir));
-		plane.get_transform().LookTowards(glm::normalize(-move_dir), glm::normalize(-to_center));
-
-
+		
 
 		if (track_plane)
 		{
 			auto plane_pos = plane.get_transform().GetTranslation();
 			auto look_offset = glm::normalize(move_dir) * tilt_amount;
-			auto up_offset = glm::normalize(-to_center) * tilt_amount;
+			auto up_offset = glm::normalize(-to_center_new) * tilt_amount;
 			auto trans_offset = glm::normalize(-move_dir) * tilt_amount;
 
-			mCamera.mWorld.SetTranslate(plane_pos - to_center * camera_height + trans_offset * camera_height);
-			mCamera.mWorld.LookTowards(glm::normalize(to_center + look_offset), glm::normalize(move_dir + up_offset));
+			auto desired_pos = plane_pos - to_center_new * camera_height + trans_offset * camera_height;
+			glm::vec3 actual_pos;
+			if (smoothed_camera)
+			{
+				auto current_pos = mCamera.mWorld.GetTranslation();
+				actual_pos = (desired_pos - current_pos) * glm::min(catch_up * deltaTimeS, 1.0f) + current_pos;
+			}
+			else
+			{
+				actual_pos = desired_pos;
+			}
+
+			mCamera.mWorld.SetTranslate(actual_pos);
+			mCamera.mWorld.LookTowards(glm::normalize(to_center_new + look_offset), glm::normalize(move_dir + up_offset));
 
 			auto sun_offset = (plane.get_transform().GetRight() + plane.get_transform().GetBack()) * 30.0f * constant::scale_lengths;
 
-			lights[0].transform.SetTranslate(plane.get_transform().GetTranslation() + sun_offset - to_center * 45.0f);
-			lights[0].transform.LookTowards(glm::normalize(to_center), glm::normalize(move_dir));
+			lights[0].transform.SetTranslate(plane.get_transform().GetTranslation() + sun_offset - to_center_new * 45.0f);
+			lights[0].transform.LookTowards(glm::normalize(to_center_new), glm::normalize(move_dir));
 		}
 
 
@@ -1147,65 +1137,6 @@ edan35::Assignment2::run()
 		//
 		glViewport(0, 0, framebuffer_width, framebuffer_height);
 		bool opened;
-		/*opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
-		if (opened) {
-			ImGui::Text("Frame CPU time: %.3f ms", std::chrono::duration<float, std::milli>(deltaTimeUs).count());
-
-			ImGui::Checkbox("Copy elapsed times back to CPU", &copy_elapsed_times);
-
-			if (ImGui::BeginTable("Pass durations", 2, ImGuiTableFlags_SizingFixedFit))
-			{
-				ImGui::TableSetupColumn("Pass");
-				ImGui::TableSetupColumn("GPU time [ms]");
-				ImGui::TableHeadersRow();
-
-				ImGui::TableNextColumn();
-				ImGui::Text("Gbuffer gen.");
-				ImGui::TableNextColumn();
-				ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::GbufferGeneration)] / 1000000.0f);
-
-				for (std::size_t i = 0; i < lights.size(); ++i) {
-					ImGui::TableNextColumn();
-					ImGui::Text("Light %zu", i);
-					ImGui::TableNextColumn();
-					ImGui::Text("");
-
-					ImGui::TableNextColumn();
-					ImGui::Text("  Shadow map");
-					ImGui::TableNextColumn();
-					ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::ShadowMap0Generation) + i] / 1000000.0f);
-
-					ImGui::TableNextColumn();
-					ImGui::Text("  Light accumulation");
-					ImGui::TableNextColumn();
-					ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::Light0Accumulation) + i] / 1000000.0f);
-				}
-
-				ImGui::TableNextColumn();
-				ImGui::Text("Resolve");
-				ImGui::TableNextColumn();
-				ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::Resolve)] / 1000000.0f);
-
-				ImGui::TableNextColumn();
-				ImGui::Text("Cone wireframe");
-				ImGui::TableNextColumn();
-				ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::ConeWireframe)] / 1000000.0f);
-
-				ImGui::TableNextColumn();
-				ImGui::Text("GUI");
-				ImGui::TableNextColumn();
-				ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::GUI)] / 1000000.0f);
-
-				ImGui::TableNextColumn();
-				ImGui::Text("Copy to framebuffer");
-				ImGui::TableNextColumn();
-				ImGui::Text("%.3f", pass_elapsed_times[toU(ElapsedTimeQuery::CopyToFramebuffer)] / 1000000.0f);
-
-				ImGui::EndTable();
-			}
-		}
-		ImGui::End();*/
-
 		opened = ImGui::Begin("Scene Controls", nullptr, ImGuiWindowFlags_None);
 		if (opened) {
 			ImGui::Checkbox("Pause lights", &are_lights_paused);
@@ -1217,8 +1148,11 @@ edan35::Assignment2::run()
 			ImGui::SliderFloat("Basis thickness scale", &basis_thickness_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Basis length scale", &basis_length_scale, 0.0f, 100.0f);
 			ImGui::SliderFloat("Sun intensity", &(lights[0].intensity), 0.0f, 20000.0f);
+			ImGui::SliderFloat("Plane speed", &(airplane.move_speed), 5.0f, 25.0f);
 			ImGui::SliderFloat("Tilt", &tilt_amount, 0.0f, 1.0f);
+			ImGui::SliderFloat("Catch up", &catch_up, 0.5f, 2.5f);
 			ImGui::Checkbox("Track plane", &track_plane);
+			ImGui::Checkbox("Smooted camera", &smoothed_camera);
 		}
 		ImGui::End();
 
