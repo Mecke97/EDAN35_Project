@@ -30,8 +30,8 @@ out VS_OUT {
 
 
 void main() {
-	float height_scale = 0.5;
-	float height_pow = 0.2;
+	float height_scale = 6.0;
+	float height_pow = 0.7;
 	float height_offset = 0;
 	vec3 _vertex = vertex;
 

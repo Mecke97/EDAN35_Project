@@ -18,7 +18,7 @@ void main()
 
 	vec3 light_d  = texture(light_d_texture,  fs_in.texcoord).rgb;
 	vec3 light_s  = texture(light_s_texture,  fs_in.texcoord).rgb;
-	const vec3 ambient = vec3(0.5);
+	const vec3 ambient = vec3(0.001);
 
 	frag_color =  vec4((ambient + light_d) * diffuse + light_s * specular, 1.0);
 }

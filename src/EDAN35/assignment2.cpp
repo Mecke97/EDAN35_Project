@@ -307,7 +307,7 @@ edan35::Assignment2::run()
 	// Setup the camera
 	//
 
-	float camera_height = 25;
+	float camera_height = 30;
 	mCamera.mWorld.SetTranslate(glm::vec3(0.0f, 1.0f, earth_radius + camera_height) * constant::scale_lengths);
 	mCamera.mMouseSensitivity = 0.003f;
 	mCamera.mMovementSpeed = 3.0f * constant::scale_lengths; // 3 m/s => 10.8 km/h.
@@ -427,7 +427,7 @@ edan35::Assignment2::run()
 
 
 	float const lightProjectionNearPlane = 0.01f * constant::scale_lengths;
-	float const lightProjectionFarPlane = 100.0f * constant::scale_lengths;
+	float const lightProjectionFarPlane = 150.0f * constant::scale_lengths;
 	auto lightProjection = glm::perspective(0.5f * glm::pi<float>(),
 	                                        static_cast<float>(constant::shadowmap_res_x) / static_cast<float>(constant::shadowmap_res_y),
 	                                        lightProjectionNearPlane, lightProjectionFarPlane);
@@ -437,7 +437,7 @@ edan35::Assignment2::run()
 	ConeLight sun;
 	sun.angle_falloff = glm::radians(85.0f);
 	sun.color = glm::vec3(1.0f);
-	sun.intensity = 40000.0f;
+	sun.intensity = 11700.0f;
 
 	float sun_height = 70.0f;
 
@@ -454,7 +454,7 @@ edan35::Assignment2::run()
 	lightOffsetTransform.SetTranslate(glm::vec3(0.0f, 0.0f, -0.4f) * constant::scale_lengths);
 
 
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(0.0f, 0.2f, 0.3f, 1.0f);
 	glClearDepthf(1.0f);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
@@ -485,7 +485,7 @@ edan35::Assignment2::run()
 	Node plane;
 	plane.set_geometry(plane_geometry.at(0));
 
-	auto plane_elevation = 50.0f;
+	auto plane_elevation = 35.0f;
 	
 	plane.get_transform().SetTranslate(glm::vec3(0, 0, earth_radius + plane_elevation) * constant::scale_lengths);
 	plane.get_transform().RotateX(glm::radians(-90.0f));
@@ -548,7 +548,7 @@ edan35::Assignment2::run()
 	bool show_textures = true;
 	bool show_cone_wireframe = false;
 
-	bool show_logs = true;
+	bool show_logs = false;
 	bool show_gui = true;
 	bool shader_reload_failed = false;
 	bool copy_elapsed_times = true;
@@ -557,7 +557,7 @@ edan35::Assignment2::run()
 	float basis_thickness_scale = 40.0f;
 	float basis_length_scale = 400.0f;
 
-	bool track_plane = false;
+	bool track_plane = true;
 
 	Airplane airplane;
 	airplane.node = &plane;
@@ -566,7 +566,7 @@ edan35::Assignment2::run()
 
 	auto jump_flood_geometry = parametric_shapes::createQuad(1, 1);
 
-	float tilt_amount = 0.3f;
+	float tilt_amount = 0.7f;
 
 	//Main loop
 	while (!glfwWindowShouldClose(window)) {
@@ -637,13 +637,15 @@ edan35::Assignment2::run()
 		//Game logic
 		//
 
+		float movementModifier = 1.0f;
 		if (!inputHandler.IsKeyboardCapturedByUI())
 		{
+			movementModifier = (inputHandler.GetKeycodeState(GLFW_KEY_LEFT_SHIFT) & PRESSED) ? 4.0f : 1.0f;
 			if ((inputHandler.GetKeycodeState(GLFW_KEY_A) & PRESSED)) airplane.move_dir -= airplane.turn_speed * deltaTimeS;
 			if ((inputHandler.GetKeycodeState(GLFW_KEY_D) & PRESSED)) airplane.move_dir += airplane.turn_speed * deltaTimeS;
 		}
 
-		airplane.angular_velocity = glm::vec2(glm::sin(airplane.move_dir), glm::cos(airplane.move_dir)) * airplane.move_speed;
+		airplane.angular_velocity = glm::vec2(glm::sin(airplane.move_dir), glm::cos(airplane.move_dir)) * airplane.move_speed * movementModifier;
 
 		airplane.latitude += glm::radians(airplane.angular_velocity.x) * deltaTimeS;
 		airplane.longitude += glm::radians(airplane.angular_velocity.y) * deltaTimeS;
@@ -668,7 +670,7 @@ edan35::Assignment2::run()
 		auto move_dir = glm::rotate(rot, glm::normalize(glm::cross(up_aligned ? glm::vec3(1, 0, 0) : up, to_center)));
 
 		
-		plane.get_transform().Translate(move_dir * airplane.move_speed * deltaTimeS);
+		plane.get_transform().Translate(move_dir * airplane.move_speed * deltaTimeS * movementModifier);
 		if (up_aligned) plane.get_transform().Translate(-move_dir);
 		auto correction_v = -to_center * (earth_radius + plane_elevation) - plane.get_transform().GetTranslation();
 		//plane.get_transform().Translate(correction_v);
@@ -687,10 +689,7 @@ edan35::Assignment2::run()
 		//plane.get_transform().LookTowards(glm::normalize(-l_dir), glm::normalize(dir));
 		plane.get_transform().LookTowards(glm::normalize(-move_dir), glm::normalize(-to_center));
 
-		auto sun_offset = (plane.get_transform().GetRight() + plane.get_transform().GetBack()) * 30.0f * constant::scale_lengths;
 
-		lights[0].transform.SetTranslate(plane.get_transform().GetTranslation() + sun_offset - to_center * 20.0f);
-		lights[0].transform.LookTowards(glm::normalize(to_center), glm::normalize(move_dir));
 
 		if (track_plane)
 		{
@@ -701,6 +700,11 @@ edan35::Assignment2::run()
 
 			mCamera.mWorld.SetTranslate(plane_pos - to_center * camera_height + trans_offset * camera_height);
 			mCamera.mWorld.LookTowards(glm::normalize(to_center + look_offset), glm::normalize(move_dir + up_offset));
+
+			auto sun_offset = (plane.get_transform().GetRight() + plane.get_transform().GetBack()) * 30.0f * constant::scale_lengths;
+
+			lights[0].transform.SetTranslate(plane.get_transform().GetTranslation() + sun_offset - to_center * 45.0f);
+			lights[0].transform.LookTowards(glm::normalize(to_center), glm::normalize(move_dir));
 		}
 
 
@@ -1128,22 +1132,22 @@ edan35::Assignment2::run()
 		//
 		// Output content of the g-buffer as well as of the shadowmap, for debugging purposes
 		//
-		if (show_textures) {
-			bonobo::displayTexture({-0.95f, -0.95f}, {-0.55f, -0.55f}, textures[toU(Texture::GBufferDiffuse)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);
-			bonobo::displayTexture({-0.95f,  0.55f}, {-0.55f,  0.95f}, textures[toU(Texture::ShadowMap)],                 samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, lightProjectionNearPlane, lightProjectionFarPlane);
-			bonobo::displayTexture({-0.45f,  0.55f}, {-0.05f,  0.95f}, textures[toU(Texture::LightDiffuseContribution)],  samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-			bonobo::displayTexture({ 0.05f,  0.55f}, { 0.45f,  0.95f}, textures[toU(Texture::LightSpecularContribution)], samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
-		}
+		//if (show_textures) {
+		//	bonobo::displayTexture({-0.95f, -0.95f}, {-0.55f, -0.55f}, textures[toU(Texture::GBufferDiffuse)],            samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+		//	bonobo::displayTexture({-0.45f, -0.95f}, {-0.05f, -0.55f}, textures[toU(Texture::GBufferSpecular)],           samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+		//	bonobo::displayTexture({ 0.05f, -0.95f}, { 0.45f, -0.55f}, textures[toU(Texture::GBufferWorldSpaceNormal)],   samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+		//	bonobo::displayTexture({ 0.55f, -0.95f}, { 0.95f, -0.55f}, textures[toU(Texture::DepthBuffer)],               samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, mCamera.mNear, mCamera.mFar);
+		//	bonobo::displayTexture({-0.95f,  0.55f}, {-0.55f,  0.95f}, textures[toU(Texture::ShadowMap)],                 samplers[toU(Sampler::Linear)], {0, 0, 0, -1}, glm::uvec2(framebuffer_width, framebuffer_height), true, lightProjectionNearPlane, lightProjectionFarPlane);
+		//	bonobo::displayTexture({-0.45f,  0.55f}, {-0.05f,  0.95f}, textures[toU(Texture::LightDiffuseContribution)],  samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+		//	bonobo::displayTexture({ 0.05f,  0.55f}, { 0.45f,  0.95f}, textures[toU(Texture::LightSpecularContribution)], samplers[toU(Sampler::Linear)], {0, 1, 2, -1}, glm::uvec2(framebuffer_width, framebuffer_height));
+		//}
 
 		//
 		// Reset viewport back to normal
 		//
 		glViewport(0, 0, framebuffer_width, framebuffer_height);
-
-		bool opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
+		bool opened;
+		/*opened = ImGui::Begin("Render Time", nullptr, ImGuiWindowFlags_None);
 		if (opened) {
 			ImGui::Text("Frame CPU time: %.3f ms", std::chrono::duration<float, std::milli>(deltaTimeUs).count());
 
@@ -1200,7 +1204,7 @@ edan35::Assignment2::run()
 				ImGui::EndTable();
 			}
 		}
-		ImGui::End();
+		ImGui::End();*/
 
 		opened = ImGui::Begin("Scene Controls", nullptr, ImGuiWindowFlags_None);
 		if (opened) {
